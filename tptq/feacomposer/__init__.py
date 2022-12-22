@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from collections import defaultdict
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable, Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import NamedTuple, Union
@@ -10,24 +9,37 @@ from typing import NamedTuple, Union
 @dataclass(kw_only=True)
 class FeaComposer:
 
-    cmap: dict[int, str] | None = None
-    glyphs: list[str] | None = None
-    option_manager: OptionManager | None = None
+    cmap: dict[int, str]
+    glyphs: list[str]
     units_per_em: float = 1000
 
-    root: list[Statement] = field(default_factory=list)
-    current: list[Statement] = field(init=False)
+    # Internal states:
 
-    glyph_classes: list[str] = field(default_factory=list, init=False)
-    locales: defaultdict[str, set[str]] = field(
-        default_factory=lambda: defaultdict(set, {"DFLT": {"dflt"}}), init=False
-    )
-    lookups: list[str] = field(default_factory=list, init=False)
+    root: list[Statement]
+    current: list[Statement]
 
-    _unnamed_lookup_count: int = field(default=0, init=False)
+    glyph_classes: list[str]
 
-    def __post_init__(self):
-        self.current = self.root
+    locales: dict[str, set[str]]
+
+    lookups: list[str]
+    unnamed_lookup_count: int
+
+    def __init__(
+        self,
+        cmap: Mapping[int, str] | None = None,
+        glyphs: Iterable[str] | None = None,
+        units_per_em: float = 1000,
+    ):
+        self.cmap = dict(cmap or {})
+        self.glyphs = list(glyphs or [])
+        self.units_per_em = units_per_em
+
+        self.current = self.root = []
+        self.glyph_classes = []
+        self.locales = {"DFLT": {"dflt"}}
+        self.lookups = []
+        self.unnamed_lookup_count = 0
 
     def code(self, *, generate_languagesystems: bool = True) -> str:
 
@@ -79,7 +91,7 @@ class FeaComposer:
     def locale(self, script: str = "DFLT", language: str = "dflt"):
         self.inline_statement("script", script)
         self.inline_statement("language", language)
-        self.locales[script].update({"dflt", language})
+        self.locales.setdefault(script, set()).update({"dflt", language})
 
     def substitute(
         self, target: str | Iterable[str], replacement: str | Iterable[str] | None = None
@@ -125,8 +137,8 @@ class FeaComposer:
         """
 
         if not name:
-            self._unnamed_lookup_count += 1
-            name = f"anonymous.{self._unnamed_lookup_count}"  # cannot start with a digit
+            self.unnamed_lookup_count += 1
+            name = f"anonymous.{self.unnamed_lookup_count}"  # cannot start with a digit
         if name in self.lookups:
             raise ValueError(f"duplicated lookup name: {name}")
         self.lookups.append(name)
