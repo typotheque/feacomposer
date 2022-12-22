@@ -6,11 +6,12 @@ from dataclasses import dataclass, field
 from typing import NamedTuple, Union
 
 
+@dataclass
 class FeaComposer:
 
     cmap: dict[int, str]
     glyphs: list[str]
-    units_per_em: float = 1000
+    units_per_em: float
 
     # Internal states:
 
