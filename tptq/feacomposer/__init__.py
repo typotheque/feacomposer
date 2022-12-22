@@ -6,7 +6,6 @@ from dataclasses import dataclass, field
 from typing import NamedTuple, Union
 
 
-@dataclass(kw_only=True)
 class FeaComposer:
 
     cmap: dict[int, str]
