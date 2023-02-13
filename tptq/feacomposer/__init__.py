@@ -133,7 +133,7 @@ class FeaComposer:
             self.current = parent  # restore
 
     @contextmanager
-    def Lookup(self, name: str | None = None, /, *, flags: Iterable[str] = []):
+    def Lookup(self, name: str | None = None, /, *, flags: Iterable[str] | None = None):
 
         """
         possible values for `flags`:
@@ -149,7 +149,7 @@ class FeaComposer:
 
         with self.BlockStatement("lookup", name):
 
-            if flags := [*flags]:
+            if flags := list(flags or []):
                 self.inline_statement("lookupflag", *flags)
 
             yield
