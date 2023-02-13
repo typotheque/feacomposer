@@ -97,9 +97,7 @@ class FeaComposer:
         self.inline_statement("language", language)
         self.locales.setdefault(script, {DEFAULT_LANGUAGE}).add(language)
 
-    def substitute(
-        self, target: str | Iterable[str], replacement: str | Iterable[str] | None = None
-    ):
+    def sub(self, target: str | Iterable[str], replacement: str | Iterable[str] | None = None):
         if not isinstance(target, str):
             target = " ".join(target)
         if replacement is None:
@@ -109,14 +107,14 @@ class FeaComposer:
                 replacement = " ".join(replacement)
             self.inline_statement("sub", f"{target} by {replacement}")
 
-    sub = substitute
+    substitute = sub
 
-    def ignore_substitute(self, target: str | Iterable[str]):
+    def ignore_sub(self, target: str | Iterable[str]):
         if not isinstance(target, str):
             target = " ".join(target)
         self.inline_statement("ignore sub", f"{target}")
 
-    ignore_sub = ignore_substitute
+    ignore_substitute = ignore_sub
 
     def lookup(self, name: str, /):
         if name not in self.lookups:
