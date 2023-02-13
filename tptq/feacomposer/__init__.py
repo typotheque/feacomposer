@@ -3,11 +3,23 @@ from __future__ import annotations
 from collections.abc import Iterable, Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import NamedTuple, Union
+from typing import NamedTuple
 
 from fontTools.unicodedata.OTTags import DEFAULT_SCRIPT
 
 DEFAULT_LANGUAGE = "dflt"
+
+
+def glyph_class(members: Iterable[str]) -> str:
+    return "[" + " ".join(members) + "]"
+
+
+def target(targeted: str) -> str:
+    return targeted + "'"
+
+
+def lookup(name: str) -> str:
+    return f"lookup {name}"
 
 
 @dataclass
@@ -168,21 +180,6 @@ class FeaComposer:
             yield
 
 
-def glyph_class(members: Iterable[str]) -> str:
-    return "[" + " ".join(members) + "]"
-
-
-def target(targeted: str) -> str:
-    return targeted + "'"
-
-
-def lookup(name: str) -> str:
-    return f"lookup {name}"
-
-
-Statement = Union["InlineStatement", "BlockStatement"]
-
-
 class InlineStatement(str):
     @classmethod
     def from_fields(cls, *fields: str) -> InlineStatement:
@@ -229,6 +226,22 @@ class BlockStatement(NamedTuple):
             yield ""
 
 
+Statement = InlineStatement | BlockStatement
+
+
+@dataclass
+class Option:
+
+    stylistic_set: tuple[int, str] | None = None
+    """number (1 to 20) and name"""
+
+    locales: dict[str, set[str]] = field(default_factory=dict)
+    """OpenType script tag to language tags"""
+
+    lookups: set[str] = field(default_factory=set)
+    """lookup names"""
+
+
 @dataclass(frozen=True)
 class OptionManager:
 
@@ -267,16 +280,3 @@ class OptionManager:
                 }
 
         return locale_to_lookups
-
-
-@dataclass
-class Option:
-
-    stylistic_set: tuple[int, str] | None = None
-    """number (1 to 20) and name"""
-
-    locales: dict[str, set[str]] = field(default_factory=dict)
-    """OpenType script tag to language tags"""
-
-    lookups: set[str] = field(default_factory=set)
-    """lookup names"""
