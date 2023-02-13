@@ -109,6 +109,8 @@ class FeaComposer:
                 replacement = " ".join(replacement)
             self.inline_statement("sub", f"{target} by {replacement}")
 
+    sub = substitute
+
     def ignore(self, target: str | Iterable[str]):
         if not isinstance(target, str):
             target = " ".join(target)
