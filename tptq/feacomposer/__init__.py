@@ -111,10 +111,12 @@ class FeaComposer:
 
     sub = substitute
 
-    def ignore(self, target: str | Iterable[str]):
+    def ignore_substitute(self, target: str | Iterable[str]):
         if not isinstance(target, str):
             target = " ".join(target)
         self.inline_statement("ignore sub", f"{target}")
+
+    ignore_sub = ignore_substitute
 
     def lookup(self, name: str, /):
         if name not in self.lookups:
