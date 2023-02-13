@@ -5,6 +5,10 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import NamedTuple, Union
 
+from fontTools.unicodedata.OTTags import DEFAULT_SCRIPT
+
+DEFAULT_LANGUAGE = "dflt"
+
 
 @dataclass
 class FeaComposer:
@@ -37,7 +41,7 @@ class FeaComposer:
 
         self.current = self.root = []
         self.glyph_classes = []
-        self.locales = {"DFLT": {"dflt"}}
+        self.locales = {DEFAULT_SCRIPT: {DEFAULT_LANGUAGE}}
         self.lookups = []
         self.unnamed_lookup_count = 0
 
@@ -85,13 +89,13 @@ class FeaComposer:
 
         self.inline_statement(name, "=", glyph_class(members))
 
-    def languagesystem(self, script: str = "DFLT", language: str = "dflt"):
+    def languagesystem(self, script: str = DEFAULT_SCRIPT, language: str = DEFAULT_LANGUAGE):
         self.inline_statement("languagesystem", f"{script} {language}")
 
-    def locale(self, script: str = "DFLT", language: str = "dflt"):
+    def locale(self, script: str = DEFAULT_SCRIPT, language: str = DEFAULT_LANGUAGE):
         self.inline_statement("script", script)
         self.inline_statement("language", language)
-        self.locales.setdefault(script, set()).update({"dflt", language})
+        self.locales.setdefault(script, {DEFAULT_LANGUAGE}).add(language)
 
     def substitute(
         self, target: str | Iterable[str], replacement: str | Iterable[str] | None = None
