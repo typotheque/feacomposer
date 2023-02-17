@@ -41,6 +41,8 @@ class FeaComposer:
     lookups: list[str]
     unnamed_lookup_count: int
 
+    gdef_override: GDEFManager
+
     def __init__(
         self,
         cmap: Mapping[int, str] | None = None,
@@ -56,6 +58,7 @@ class FeaComposer:
         self.locales = {DEFAULT_SCRIPT: {DEFAULT_LANGUAGE}}
         self.lookups = []
         self.unnamed_lookup_count = 0
+        self.gdef_class_override = GDEFManager(set(), set(), set(), set(), set())
 
     def code(self, *, generate_languagesystems: bool = True) -> str:
 
@@ -230,6 +233,25 @@ class BlockStatement(NamedTuple):
 
 
 Statement = InlineStatement | BlockStatement
+
+
+@dataclass
+class GDEFManager:
+
+    unassigned: set[str]
+    bases: set[str]
+    ligatures: set[str]
+    marks: set[str]
+    components: set[str]
+
+    def class_to_glyphs(self) -> dict[int, set[str]]:
+        return {
+            0: self.unassigned,
+            1: self.bases,
+            2: self.ligatures,
+            3: self.marks,
+            4: self.components,
+        }
 
 
 @dataclass
