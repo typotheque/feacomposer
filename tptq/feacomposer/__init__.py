@@ -109,7 +109,14 @@ class FeaComposer:
         self.inline_statement("language", language)
         self.locales.setdefault(script, {DEFAULT_LANGUAGE}).add(language)
 
-    def sub(self, target: str | Iterable[str], replacement: str | Iterable[str] | None = None):
+    def sub(self, target: str | Iterable[str], replacement: str | Iterable[str] = "NULL"):
+
+        """
+        > Omitting the `by` clause is equivalent to adding `by NULL`.
+
+        https://adobe-type-tools.github.io/afdko/OpenTypeFeatureFileSpecification.html#5-glyph-substitution-gsub-rules
+        """
+
         if not isinstance(target, str):
             target = " ".join(target)
         if replacement is None:
