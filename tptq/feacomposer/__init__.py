@@ -102,7 +102,7 @@ class FeaComposer:
         self.inline_statement(name, "=", glyph_class(members))
 
     def languagesystem(self, script: str = DEFAULT_SCRIPT, language: str = DEFAULT_LANGUAGE):
-        self.inline_statement("languagesystem", f"{script} {language}")
+        self.inline_statement("languagesystem", script, language)
 
     def locale(self, script: str = DEFAULT_SCRIPT, language: str = DEFAULT_LANGUAGE):
         self.inline_statement("script", script)
@@ -117,18 +117,18 @@ class FeaComposer:
         https://adobe-type-tools.github.io/afdko/OpenTypeFeatureFileSpecification.html#5-glyph-substitution-gsub-rules
         """
 
-        if not isinstance(target, str):
-            target = " ".join(target)
-        if not isinstance(replacement, str):
-            replacement = " ".join(replacement)
-        self.inline_statement("sub", f"{target} by {replacement}")
+        if isinstance(target, str):
+            target = [target]
+        if isinstance(replacement, str):
+            replacement = [replacement]
+        self.inline_statement("sub", *target, "by", *replacement)
 
     substitute = sub
 
     def ignore_sub(self, target: str | Iterable[str]):
-        if not isinstance(target, str):
-            target = " ".join(target)
-        self.inline_statement("ignore sub", f"{target}")
+        if isinstance(target, str):
+            target = [target]
+        self.inline_statement("ignore", "sub", *target)
 
     ignore_substitute = ignore_sub
 
@@ -180,7 +180,7 @@ class FeaComposer:
         with self.BlockStatement("feature", tag):
             if name is not None:
                 with self.BlockStatement("featureNames"):
-                    self.inline_statement("name", '"' + name + '"')
+                    self.inline_statement("name", f'"{name}"')
             yield
 
 
