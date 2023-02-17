@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "tptq-feacomposer"
-version = "0.3.4"
+version = "0.3.5"
 description = ""
 authors = ["Liang Hai <liang@typotheque.com>"]
 readme = "README.md"

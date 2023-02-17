@@ -109,19 +109,18 @@ class FeaComposer:
         self.inline_statement("language", language)
         self.locales.setdefault(script, {DEFAULT_LANGUAGE}).add(language)
 
-    def sub(self, target: str | Iterable[str], replacement: str | Iterable[str] = "NULL"):
-
-        """
-        > Omitting the `by` clause is equivalent to adding `by NULL`.
-
-        https://adobe-type-tools.github.io/afdko/OpenTypeFeatureFileSpecification.html#5-glyph-substitution-gsub-rules
-        """
+    def sub(self, target: str | Iterable[str], replacement: str | Iterable[str] | None = None):
 
         if isinstance(target, str):
             target = [target]
-        if isinstance(replacement, str):
-            replacement = [replacement]
-        self.inline_statement("sub", *target, "by", *replacement)
+
+        if replacement is None:
+            # `by NULL` cannot be always added because “omitting the `by` clause is equivalent to adding `by NULL`” is only applicable to GSUB type 1 (single substitution) and 8 (reverse chaining single substitution): https://adobe-type-tools.github.io/afdko/OpenTypeFeatureFileSpecification.html#5-glyph-substitution-gsub-rules
+            self.inline_statement("sub", *target)
+        else:
+            if isinstance(replacement, str):
+                replacement = [replacement]
+            self.inline_statement("sub", *target, "by", *replacement)
 
     substitute = sub
 
