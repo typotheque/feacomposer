@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Iterable, Iterator, Mapping
+from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import NamedTuple
@@ -8,6 +8,26 @@ from typing import NamedTuple
 from fontTools.unicodedata.OTTags import DEFAULT_SCRIPT
 
 DEFAULT_LANGUAGE = "dflt"
+
+
+@dataclass
+class GDEFManager:
+
+    unassigned: set[str] = field(default_factory=set)
+    bases: set[str] = field(default_factory=set)
+    ligatures: set[str] = field(default_factory=set)
+    marks: set[str] = field(default_factory=set)
+    components: set[str] = field(default_factory=set)
+
+    @property
+    def class_to_glyphs(self) -> dict[int, set[str]]:
+        return {
+            0: self.unassigned,
+            1: self.bases,
+            2: self.ligatures,
+            3: self.marks,
+            4: self.components,
+        }
 
 
 def glyph_class(members: Iterable[str]) -> str:
@@ -25,40 +45,28 @@ def lookup(name: str) -> str:
 @dataclass
 class FeaComposer:
 
-    cmap: dict[int, str]
-    glyphs: list[str]
-    units_per_em: float
+    cmap: dict[int, str] = field(default_factory=dict)
+    glyphs: list[str] = field(default_factory=list)
+    units_per_em: float = 1000
 
     # Internal states:
 
-    root: list[Statement]
-    current: list[Statement]
+    root: list[Statement] = field(default_factory=list)
+    current: list[Statement] = field(default_factory=list)
 
-    glyph_classes: list[str]
+    glyph_classes: list[str] = field(default_factory=list)
 
-    locales: dict[str, set[str]]
+    locales: dict[str, set[str]] = field(
+        default_factory=lambda: {DEFAULT_SCRIPT: {DEFAULT_LANGUAGE}}
+    )
 
-    lookups: list[str]
-    unnamed_lookup_count: int
+    lookups: list[str] = field(default_factory=list)
+    unnamed_lookup_count: int = 0
 
-    gdef_override: GDEFManager
+    gdef_override: GDEFManager = field(default_factory=GDEFManager)
 
-    def __init__(
-        self,
-        cmap: Mapping[int, str] | None = None,
-        glyphs: Iterable[str] | None = None,
-        units_per_em: float = 1000,
-    ):
-        self.cmap = dict(cmap or {})
-        self.glyphs = list(glyphs or [])
-        self.units_per_em = units_per_em
-
-        self.current = self.root = []
-        self.glyph_classes = []
-        self.locales = {DEFAULT_SCRIPT: {DEFAULT_LANGUAGE}}
-        self.lookups = []
-        self.unnamed_lookup_count = 0
-        self.gdef_class_override = GDEFManager(set(), set(), set(), set(), set())
+    def __post_init__(self):
+        self.current = self.root
 
     def code(self, *, generate_languagesystems: bool = True) -> str:
 
@@ -233,25 +241,6 @@ class BlockStatement(NamedTuple):
 
 
 Statement = InlineStatement | BlockStatement
-
-
-@dataclass
-class GDEFManager:
-
-    unassigned: set[str]
-    bases: set[str]
-    ligatures: set[str]
-    marks: set[str]
-    components: set[str]
-
-    def class_to_glyphs(self) -> dict[int, set[str]]:
-        return {
-            0: self.unassigned,
-            1: self.bases,
-            2: self.ligatures,
-            3: self.marks,
-            4: self.components,
-        }
 
 
 @dataclass
