@@ -119,12 +119,9 @@ class FeaComposer:
 
         if not isinstance(target, str):
             target = " ".join(target)
-        if replacement is None:
-            self.inline_statement("sub", target)
-        else:
-            if not isinstance(replacement, str):
-                replacement = " ".join(replacement)
-            self.inline_statement("sub", f"{target} by {replacement}")
+        if not isinstance(replacement, str):
+            replacement = " ".join(replacement)
+        self.inline_statement("sub", f"{target} by {replacement}")
 
     substitute = sub
 
