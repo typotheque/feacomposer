@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import defaultdict
 from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -56,8 +57,13 @@ class FeaComposer:
 
     glyph_classes: list[str] = field(default_factory=list)
 
-    locales: dict[str, set[str]] = field(
-        default_factory=lambda: {DEFAULT_SCRIPT: {DEFAULT_LANGUAGE}}
+    locales: defaultdict[str, set[str]] = field(
+        default_factory=lambda: (
+            defaultdict(
+                lambda: {DEFAULT_LANGUAGE},  # default value
+                {DEFAULT_SCRIPT: {DEFAULT_LANGUAGE}},  # initial content
+            )
+        )
     )
 
     lookups: list[str] = field(default_factory=list)
@@ -118,7 +124,7 @@ class FeaComposer:
     def locale(self, script: str = DEFAULT_SCRIPT, language: str = DEFAULT_LANGUAGE):
         self.inline_statement("script", script)
         self.inline_statement("language", language)
-        self.locales.setdefault(script, {DEFAULT_LANGUAGE}).add(language)
+        self.locales[script].add(language)
 
     def sub(self, target: str | Iterable[str], replacement: str | Iterable[str] | None = None):
 
@@ -275,8 +281,6 @@ class OptionManager:
                     numbers.add(number)
 
     def locale_to_lookups(self) -> dict[tuple[str, str], set[str]]:
-
-        from collections import defaultdict
 
         locales = defaultdict[str, set[str]](set)
         for option in self.options:
