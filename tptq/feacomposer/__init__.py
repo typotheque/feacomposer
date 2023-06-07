@@ -178,7 +178,7 @@ class FeaComposer:
             if flags := list(flags or []):
                 self.inline_statement("lookupflag", *flags)
 
-            yield
+            yield name
 
             if flags:
                 self.inline_statement("lookupflag", "0")
