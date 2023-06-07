@@ -13,7 +13,6 @@ DEFAULT_LANGUAGE = "dflt"
 
 @dataclass
 class GDEFManager:
-
     unassigned: set[str] = field(default_factory=set)
     bases: set[str] = field(default_factory=set)
     ligatures: set[str] = field(default_factory=set)
@@ -45,7 +44,6 @@ def lookup(name: str) -> str:
 
 @dataclass
 class FeaComposer:
-
     cmap: dict[int, str] = field(default_factory=dict)
     glyphs: list[str] = field(default_factory=list)
     units_per_em: float = 1000
@@ -75,7 +73,6 @@ class FeaComposer:
         self.current = self.root
 
     def code(self, *, generate_languagesystems: bool = True) -> str:
-
         from unittest.mock import patch
 
         statements = list[Statement]()
@@ -109,7 +106,6 @@ class FeaComposer:
         self.append(InlineStatement.from_fields(*fields))
 
     def glyph_class(self, name: str, members: Iterable[str]):
-
         if not name.startswith("@"):
             raise ValueError(f"glyph class name must start with @: {name}")
         if name in self.glyph_classes:
@@ -127,7 +123,6 @@ class FeaComposer:
         self.locales[script].add(language)
 
     def sub(self, target: str | Iterable[str], replacement: str | Iterable[str] | None = None):
-
         if isinstance(target, str):
             target = [target]
 
@@ -155,7 +150,6 @@ class FeaComposer:
 
     @contextmanager
     def BlockStatement(self, keyword: str, /, value: str | None = None):
-
         block = BlockStatement.from_struct(keyword, value, children=[])
         self.append(block)
 
@@ -168,7 +162,6 @@ class FeaComposer:
 
     @contextmanager
     def Lookup(self, name: str | None = None, /, *, flags: Iterable[str] | None = None):
-
         """
         possible values for `flags`:
         https://adobe-type-tools.github.io/afdko/OpenTypeFeatureFileSpecification.html#4d-lookupflag
@@ -182,7 +175,6 @@ class FeaComposer:
         self.lookups.append(name)
 
         with self.BlockStatement("lookup", name):
-
             if flags := list(flags or []):
                 self.inline_statement("lookupflag", *flags)
 
@@ -207,7 +199,6 @@ class InlineStatement(str):
 
 
 class BlockStatement(NamedTuple):
-
     prefix: str
     children: list[Statement]
     suffix: str
@@ -227,7 +218,6 @@ class BlockStatement(NamedTuple):
     def lines(
         self, indentation: str = " " * 4, wrap_with_empty_lines: bool = False
     ) -> Iterator[str]:
-
         if wrap_with_empty_lines:
             yield ""
 
@@ -251,7 +241,6 @@ Statement = InlineStatement | BlockStatement
 
 @dataclass
 class Option:
-
     stylistic_set: tuple[int, str] | None = None
     """number (1 to 20) and name"""
 
@@ -264,11 +253,9 @@ class Option:
 
 @dataclass(frozen=True)
 class OptionManager:
-
     options: list[Option]
 
     def __post_init__(self):
-
         numbers = set[int]()  # validate stylistic set numbers
         for option in self.options:
             if stylistic_set := option.stylistic_set:
@@ -281,7 +268,6 @@ class OptionManager:
                     numbers.add(number)
 
     def locale_to_lookups(self) -> dict[tuple[str, str], set[str]]:
-
         locales = defaultdict[str, set[str]](set)
         for option in self.options:
             for script, languages in option.locales.items():

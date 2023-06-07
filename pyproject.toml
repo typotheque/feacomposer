@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "tptq-feacomposer"
-version = "0.4.0"
+version = "0.4.1"
 description = ""
 authors = ["Liang Hai <liang@typotheque.com>"]
 readme = "README.md"
@@ -9,14 +9,6 @@ packages = [{ include = "tptq" }]
 [tool.poetry.dependencies]
 python = "^3.10"
 fonttools = "^4.39.2"
-
-[tool.poetry.group.dev.dependencies]
-black = "^22.12.0"
-isort = "^5.11.3"
-
-[tool]
-black = { line-length = 100 }
-isort = { profile = "black" }
 
 [build-system]
 requires = ["poetry-core"]
