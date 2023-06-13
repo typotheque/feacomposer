@@ -76,7 +76,7 @@ class FeaComposer:
         from unittest.mock import patch
 
         statements = list[Statement]()
-        with patch.object(self, "current", statements):
+        with patch.object(self, "_current", statements):
             if generate_languagesystems:
                 for script, languages in sorted(self.locales.items()):
                     for language in sorted(languages):
