@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import NamedTuple
@@ -48,10 +48,9 @@ class FeaComposer:
     glyphs: list[str] = field(default_factory=list)
     units_per_em: float = 1000
 
-    # Internal states:
+    # States:
 
-    root: list[Statement] = field(default_factory=list)
-    current: list[Statement] = field(default_factory=list)
+    name_formatter: Callable[[str], str] | None = None
 
     glyph_classes: dict[str, set[str]] = field(default_factory=dict)
 
@@ -69,8 +68,11 @@ class FeaComposer:
 
     gdef_override: GDEFManager = field(default_factory=GDEFManager)
 
+    _root: list[Statement] = field(default_factory=list)
+    _current: list[Statement] = field(default_factory=list)
+
     def __post_init__(self):
-        self.current = self.root
+        self._current = self._root
 
     def code(self, *, generate_languagesystems: bool = True) -> str:
         from unittest.mock import patch
@@ -81,7 +83,7 @@ class FeaComposer:
                 for script, languages in sorted(self.locales.items()):
                     for language in sorted(languages):
                         self.languagesystem(script, language)
-        statements.extend(self.root)
+        statements.extend(self._root)
 
         lines = list[str]()
         for statement in statements:
@@ -97,10 +99,10 @@ class FeaComposer:
         return "".join(i + "\n" for i in lines).replace("\n" * 3, "\n" * 2)
 
     def append(self, statement: Statement):
-        self.current.append(statement)
+        self._current.append(statement)
 
     def extend(self, statements: Iterable[Statement]):
-        self.current.extend(statements)
+        self._current.extend(statements)
 
     def inline_statement(self, *fields: str):
         self.append(InlineStatement.from_fields(*fields))
@@ -110,6 +112,9 @@ class FeaComposer:
             raise ValueError(f"glyph class name must start with @: {name}")
         if name in self.glyph_classes:
             raise ValueError(f"duplicated glyph class name: {name}")
+
+        if self.name_formatter:
+            name = self.name_formatter(name)
 
         self.inline_statement(name, "=", glyph_class(members))
 
@@ -163,12 +168,12 @@ class FeaComposer:
         block = BlockStatement.from_struct(keyword, value, children=[])
         self.append(block)
 
-        parent = self.current  # backup
+        parent = self._current  # backup
         try:
-            self.current = block.children  # switch
+            self._current = block.children  # switch
             yield
         finally:
-            self.current = parent  # restore
+            self._current = parent  # restore
 
     @contextmanager
     def Lookup(self, name: str | None = None, /, *, flags: Iterable[str] | None = None):
