@@ -53,7 +53,7 @@ class FeaComposer:
     root: list[Statement] = field(default_factory=list)
     current: list[Statement] = field(default_factory=list)
 
-    glyph_classes: list[str] = field(default_factory=list)
+    glyph_classes: dict[str, set[str]] = field(default_factory=dict)
 
     locales: defaultdict[str, set[str]] = field(
         default_factory=lambda: (
@@ -105,14 +105,24 @@ class FeaComposer:
     def inline_statement(self, *fields: str):
         self.append(InlineStatement.from_fields(*fields))
 
-    def glyph_class(self, name: str, members: Iterable[str]):
+    def glyph_class(self, name: str, members: Iterable[str]) -> str:
         if not name.startswith("@"):
             raise ValueError(f"glyph class name must start with @: {name}")
         if name in self.glyph_classes:
             raise ValueError(f"duplicated glyph class name: {name}")
-        self.glyph_classes.append(name)
 
         self.inline_statement(name, "=", glyph_class(members))
+
+        glyphs = self.glyph_classes[name] = set[str]()
+        for member in members:
+            if member.startswith("@"):
+                glyphs |= self.glyph_classes[member]
+            elif "[" in member:  # class literal
+                raise NotImplementedError
+            else:
+                glyphs.add(member)
+
+        return name
 
     def languagesystem(self, script: str = DEFAULT_SCRIPT, language: str = DEFAULT_LANGUAGE):
         self.inline_statement("languagesystem", script, language)
