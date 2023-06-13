@@ -55,11 +55,9 @@ class FeaComposer:
     glyph_classes: dict[str, set[str]] = field(default_factory=dict)
 
     locales: defaultdict[str, set[str]] = field(
-        default_factory=lambda: (
-            defaultdict(
-                lambda: {DEFAULT_LANGUAGE},  # default value
-                {DEFAULT_SCRIPT: {DEFAULT_LANGUAGE}},  # initial content
-            )
+        default_factory=lambda: defaultdict(
+            lambda: {DEFAULT_LANGUAGE},  # default value
+            {DEFAULT_SCRIPT: {DEFAULT_LANGUAGE}},  # initial content
         )
     )
 
@@ -113,12 +111,10 @@ class FeaComposer:
         if name in self.glyph_classes:
             raise ValueError(f"duplicated glyph class name: {name}")
 
-        if self.name_formatter:
-            name = self.name_formatter(name)
+        formatted_name = self.name_formatter(name) if self.name_formatter else name
+        self.inline_statement(formatted_name, "=", glyph_class(members))
 
-        self.inline_statement(name, "=", glyph_class(members))
-
-        glyphs = self.glyph_classes[name] = set[str]()
+        glyphs = self.glyph_classes[formatted_name] = set[str]()
         for member in members:
             if member.startswith("@"):
                 glyphs |= self.glyph_classes[member]
@@ -127,7 +123,7 @@ class FeaComposer:
             else:
                 glyphs.add(member)
 
-        return name
+        return formatted_name
 
     def languagesystem(self, script: str = DEFAULT_SCRIPT, language: str = DEFAULT_LANGUAGE):
         self.inline_statement("languagesystem", script, language)
