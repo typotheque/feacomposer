@@ -3,15 +3,17 @@ from collections.abc import Callable
 from io import BytesIO
 
 import uharfbuzz as hb
-from fontTools.feaLib.ast import FeatureBlock, FeatureFile
-from fontTools.feaLib.ast import GlyphName as _GlyphName
 from fontTools.feaLib.ast import (
+    FeatureBlock,
+    FeatureFile,
+    GlyphName,
     LanguageSystemStatement,
     LigatureSubstStatement,
     LookupBlock,
     LookupReferenceStatement,
     Statement,
 )
+from fontTools.feaLib.builder import addOpenTypeFeaturesFromString
 from fontTools.ttLib import TTFont
 from fontTools.unicodedata.OTTags import DEFAULT_SCRIPT
 from ufo2ft import compileTTF
@@ -26,11 +28,11 @@ languageSystems = defaultdict(
 languageSystems["taml"]
 
 
-def GlyphName(shorthand: str) -> _GlyphName:
-    return _GlyphName("Taml:" + shorthand)
+def GlyphNameFormatter(shorthand: str) -> GlyphName:
+    return GlyphName("Taml:" + shorthand)
 
 
-type Lookup = Callable[[], Statement]
+type Lookup = Callable[[], list[LigatureSubstStatement]]
 lookupToFeatures: dict[Lookup, set[str]] = {}
 
 
@@ -47,6 +49,16 @@ def lookup(
     return decorator
 
 
+def ligate(input: list[str], output: str) -> LigatureSubstStatement:
+    return LigatureSubstStatement(
+        prefix=[],
+        glyphs=[GlyphNameFormatter(i) for i in input],
+        suffix=[],
+        replacement=GlyphNameFormatter(output),
+        forceChain=False,
+    )
+
+
 @lookup("akhn")
 def kssa():
     """
@@ -54,13 +66,9 @@ def kssa():
     Taml:kssa
     """
 
-    return LigatureSubstStatement(
-        prefix=[],
-        glyphs=[GlyphName("ka"), GlyphName("virama"), GlyphName("ssa")],
-        suffix=[],
-        replacement=GlyphName("kssa"),
-        forceChain=False,
-    )
+    return [
+        ligate(["ka", "virama", "ssa"], "kssa"),
+    ]
 
 
 ufo = Font()
@@ -82,15 +90,14 @@ def makeHbFont(ufo: Font) -> hb.Font:  # type:ignore
     )
     for lookup, features in lookupToFeatures.items():
         featureFile.statements.append(lookupBlock := LookupBlock(lookup.__name__))
-        lookupBlock.statements.append(lookup())
+        lookupBlock.statements.extend(lookup())
         for feature in features:
             featureFile.statements.append(x := FeatureBlock(feature))
             x.statements.append(LookupReferenceStatement(lookupBlock))
 
     ufo.features = featureFile.asFea()
-    print(ufo.features)
-
     ttf: TTFont = compileTTF(ufo)
+
     with BytesIO() as f:
         ttf.save(f)
         data = f.getvalue()
