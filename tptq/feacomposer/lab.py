@@ -11,9 +11,7 @@ from fontTools.feaLib.ast import (
     LigatureSubstStatement,
     LookupBlock,
     LookupReferenceStatement,
-    Statement,
 )
-from fontTools.feaLib.builder import addOpenTypeFeaturesFromString
 from fontTools.ttLib import TTFont
 from fontTools.unicodedata.OTTags import DEFAULT_SCRIPT
 from ufo2ft import compileTTF
