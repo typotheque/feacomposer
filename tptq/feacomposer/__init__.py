@@ -135,21 +135,21 @@ class FeaComposer:
 
     def sub(self, target: str | Iterable[str], replacement: str | Iterable[str] | None = None):
         if isinstance(target, str):
-            target = [target]
+            target = target.split()
 
         if replacement is None:
             # `by NULL` cannot be always added because “omitting the `by` clause is equivalent to adding `by NULL`” is only applicable to GSUB type 1 (single substitution) and 8 (reverse chaining single substitution): https://adobe-type-tools.github.io/afdko/OpenTypeFeatureFileSpecification.html#5-glyph-substitution-gsub-rules
             self.inline_statement("sub", *target)
         else:
             if isinstance(replacement, str):
-                replacement = [replacement]
+                replacement = replacement.split()
             self.inline_statement("sub", *target, "by", *replacement)
 
     substitute = sub
 
     def ignore_sub(self, target: str | Iterable[str]):
         if isinstance(target, str):
-            target = [target]
+            target = target.split()
         self.inline_statement("ignore", "sub", *target)
 
     ignore_substitute = ignore_sub
