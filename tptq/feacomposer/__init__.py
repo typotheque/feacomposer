@@ -105,9 +105,10 @@ class FeaComposer:
     def comment(self, line: str):
         self.raw("# " + line)
 
-    def behavior(self, description: str, tests: dict[str, list[str]]):
-        self.behaviors.append(Behavior(description, tests))
-        self.comment(description)
+    def behavior(self, description: str, tests: dict[str, list[str]] | None = None) -> Behavior:
+        self.behaviors.append(behavior := Behavior(description, tests or {}))
+        self.comment("[Behavior] " + behavior.description)
+        return behavior
 
     # Inline statements:
 
