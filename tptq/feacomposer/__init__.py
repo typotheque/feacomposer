@@ -71,15 +71,13 @@ class FeaComposer:
         self._current = self._root
 
     def code(self, *, generate_languagesystems: bool = True) -> str:
-        from unittest.mock import patch
-
-        statements = list[Statement]()
-        with patch.object(self, "_current", statements):
-            if generate_languagesystems:
-                for script, languages in sorted(self.locales.items()):
-                    for language in sorted(languages):
-                        self.languagesystem(script, language)
-        statements.extend(self._root)
+        statements = self._root.copy()
+        if generate_languagesystems:
+            statements = [
+                InlineStatement.from_fields("languagesystem", script, language)
+                for script, languages in sorted(self.locales.items())
+                for language in sorted(languages)
+            ] + statements
 
         lines = list[str]()
         for statement in statements:
@@ -97,8 +95,13 @@ class FeaComposer:
     def append(self, statement: Statement):
         self._current.append(statement)
 
-    def extend(self, statements: Iterable[Statement]):
-        self._current.extend(statements)
+    def raw(self, line: str):
+        self.append(InlineStatement(line))  # HACK
+
+    def comment(self, line: str):
+        self.raw("# " + line)
+
+    # Inline statements:
 
     def inline_statement(self, *fields: str):
         self.append(InlineStatement.from_fields(*fields))
@@ -155,6 +158,8 @@ class FeaComposer:
         if name not in self.lookups:
             raise ValueError(f"unknown lookup name: {name}")
         self.inline_statement("lookup", name)
+
+    # Block statements:
 
     @contextmanager
     def BlockStatement(self, keyword: str, /, value: str | None = None):
