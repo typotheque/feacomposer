@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Callable, Iterable, Iterator
+from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import NamedTuple
@@ -49,8 +49,6 @@ class FeaComposer:
     units_per_em: float = 1000
 
     # States:
-
-    name_formatter: Callable[[str], str] | None = None
 
     glyph_classes: dict[str, set[str]] = field(default_factory=dict)
 
@@ -111,10 +109,9 @@ class FeaComposer:
         if name in self.glyph_classes:
             raise ValueError(f"duplicated glyph class name: {name}")
 
-        formatted_name = self.name_formatter(name) if self.name_formatter else name
-        self.inline_statement(formatted_name, "=", glyph_class(members))
+        self.inline_statement(name, "=", glyph_class(members))
 
-        glyphs = self.glyph_classes[formatted_name] = set[str]()
+        glyphs = self.glyph_classes[name] = set[str]()
         for member in members:
             if member.startswith("@"):
                 glyphs |= self.glyph_classes[member]
@@ -123,7 +120,7 @@ class FeaComposer:
             else:
                 glyphs.add(member)
 
-        return formatted_name
+        return name
 
     def languagesystem(self, script: str = DEFAULT_SCRIPT, language: str = DEFAULT_LANGUAGE):
         self.inline_statement("languagesystem", script, language)
