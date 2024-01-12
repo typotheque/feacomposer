@@ -72,7 +72,9 @@ class FeaComposer:
     def __post_init__(self):
         self._current = self._root
 
-    def code(self, *, generate_languagesystems: bool = True) -> str:
+    def code(
+        self, *, generate_languagesystems: bool = True, wrap_blocks_with_empty_lines=False
+    ) -> str:
         statements = self._root.copy()
         if generate_languagesystems:
             statements = [
@@ -86,7 +88,7 @@ class FeaComposer:
             if isinstance(statement, str):
                 lines.append(statement)
             else:
-                lines.extend(statement.lines(wrap_with_empty_lines=True))
+                lines.extend(statement.lines(wrap_with_empty_lines=wrap_blocks_with_empty_lines))
 
         for index in [0, -1]:
             if not lines[index]:
