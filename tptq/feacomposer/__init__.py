@@ -11,6 +11,18 @@ from fontTools.unicodedata.OTTags import DEFAULT_SCRIPT
 DEFAULT_LANGUAGE = "dflt"
 
 
+def glyph_class(members: Iterable[str]) -> str:
+    return "[" + " ".join(members) + "]"
+
+
+def target(targeted: str) -> str:
+    return targeted + "'"
+
+
+def lookup(name: str) -> str:
+    return f"lookup {name}"
+
+
 @dataclass
 class GDEFManager:
     unassigned: set[str] = field(default_factory=set)
@@ -28,18 +40,6 @@ class GDEFManager:
             3: self.marks,
             4: self.components,
         }
-
-
-def glyph_class(members: Iterable[str]) -> str:
-    return "[" + " ".join(members) + "]"
-
-
-def target(targeted: str) -> str:
-    return targeted + "'"
-
-
-def lookup(name: str) -> str:
-    return f"lookup {name}"
 
 
 @dataclass
@@ -63,6 +63,8 @@ class FeaComposer:
     unnamed_lookup_count: int = 0
 
     gdef_override: GDEFManager = field(default_factory=GDEFManager)
+
+    behaviors: list[Behavior] = field(default_factory=list)
 
     _root: list[Statement] = field(default_factory=list)
     _current: list[Statement] = field(default_factory=list)
@@ -100,6 +102,10 @@ class FeaComposer:
 
     def comment(self, line: str):
         self.raw("# " + line)
+
+    def behavior(self, description: str, tests: dict[str, list[str]]):
+        self.behaviors.append(Behavior(description, tests))
+        self.comment(description)
 
     # Inline statements:
 
@@ -250,6 +256,12 @@ class BlockStatement(NamedTuple):
 
 
 Statement = InlineStatement | BlockStatement
+
+
+@dataclass
+class Behavior:
+    description: str
+    tests: dict[str, list[str]]
 
 
 @dataclass
