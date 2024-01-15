@@ -23,6 +23,12 @@ def lookup(name: str) -> str:
     return f"lookup {name}"
 
 
+def locales_factory():
+    locales = defaultdict[str, set[str]](lambda: {DEFAULT_LANGUAGE})
+    locales[DEFAULT_SCRIPT]
+    return locales
+
+
 @dataclass
 class GDEFManager:
     unassigned: set[str] = field(default_factory=set)
@@ -44,34 +50,28 @@ class GDEFManager:
 
 @dataclass
 class FeaComposer:
+    # Convenient context stores:
+
     cmap: dict[int, str] = field(default_factory=dict)
     glyphs: list[str] = field(default_factory=list)
     units_per_em: float = 1000
 
-    # States:
+    # Internal states:
 
     glyph_classes: dict[str, set[str]] = field(default_factory=dict)
-    locales: defaultdict[str, set[str]] = field(
-        default_factory=lambda: defaultdict(
-            lambda: {DEFAULT_LANGUAGE},  # default value
-            {DEFAULT_SCRIPT: {DEFAULT_LANGUAGE}},  # initial content
-        )
-    )
+    locales: defaultdict[str, set[str]] = field(default_factory=locales_factory)
     lookups: list[str] = field(default_factory=list)
     gdef_override: GDEFManager = field(default_factory=GDEFManager)
     behaviors: list[Behavior] = field(default_factory=list)
 
-    _root: list[Statement] = field(default_factory=list)
-    _current: list[Statement] = field(default_factory=list)
-
     def __post_init__(self):
-        self._current = self._root
+        self._current = self._root = list[Statement]()
 
     def code(
-        self, *, generate_languagesystems: bool = True, wrap_blocks_with_empty_lines=False
+        self, *, generate_languagesystem_statements: bool = True, wrap_blocks_with_empty_lines=False
     ) -> str:
         statements = self._root.copy()
-        if generate_languagesystems:
+        if generate_languagesystem_statements:
             statements = [
                 InlineStatement.from_fields("languagesystem", script, language)
                 for script, languages in sorted(self.locales.items())
@@ -130,10 +130,6 @@ class FeaComposer:
                 glyphs.add(member)
 
         return name
-
-    def languagesystem(self, script: str = DEFAULT_SCRIPT, language: str = DEFAULT_LANGUAGE):
-        self.inline_statement("languagesystem", script, language)
-        self.locales[script].add(language)
 
     def locale(self, script: str = DEFAULT_SCRIPT, language: str = DEFAULT_LANGUAGE):
         self.inline_statement("script", script)
