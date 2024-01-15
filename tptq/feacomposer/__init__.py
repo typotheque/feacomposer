@@ -51,19 +51,14 @@ class FeaComposer:
     # States:
 
     glyph_classes: dict[str, set[str]] = field(default_factory=dict)
-
     locales: defaultdict[str, set[str]] = field(
         default_factory=lambda: defaultdict(
             lambda: {DEFAULT_LANGUAGE},  # default value
             {DEFAULT_SCRIPT: {DEFAULT_LANGUAGE}},  # initial content
         )
     )
-
     lookups: list[str] = field(default_factory=list)
-    unnamed_lookup_count: int = 0
-
     gdef_override: GDEFManager = field(default_factory=GDEFManager)
-
     behaviors: list[Behavior] = field(default_factory=list)
 
     _root: list[Statement] = field(default_factory=list)
@@ -138,6 +133,7 @@ class FeaComposer:
 
     def languagesystem(self, script: str = DEFAULT_SCRIPT, language: str = DEFAULT_LANGUAGE):
         self.inline_statement("languagesystem", script, language)
+        self.locales[script].add(language)
 
     def locale(self, script: str = DEFAULT_SCRIPT, language: str = DEFAULT_LANGUAGE):
         self.inline_statement("script", script)
@@ -191,11 +187,11 @@ class FeaComposer:
         https://adobe-type-tools.github.io/afdko/OpenTypeFeatureFileSpecification.html#4d-lookupflag
         """
 
-        if not name:
-            self.unnamed_lookup_count += 1
-            name = f"anonymous.{self.unnamed_lookup_count}"  # cannot start with a digit
-        if name in self.lookups:
-            raise ValueError(f"duplicated lookup name: {name}")
+        if name:
+            if name in self.lookups:
+                raise ValueError(f"duplicated lookup name: {name}")
+        else:
+            name = self._next_available_anonymous_lookup_name()
         self.lookups.append(name)
 
         with self.BlockStatement("lookup", name):
@@ -206,6 +202,15 @@ class FeaComposer:
 
             if flags:
                 self.inline_statement("lookupflag", "0")
+
+    def _next_available_anonymous_lookup_name(self) -> str:
+        prefix = "anonymous."  # Lookup name cannot start with a digit
+        if existing_names := [i for i in self.lookups if i.startswith(prefix)]:
+            existing_numbers = [int(i.removeprefix(prefix)) for i in existing_names]
+            number = max(existing_numbers) + 1
+        else:
+            number = 1
+        return prefix + str(number)
 
     @contextmanager
     def Feature(self, tag: str, /, *, name: str | None = None):
