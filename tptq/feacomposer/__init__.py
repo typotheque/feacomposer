@@ -4,10 +4,8 @@ from collections import defaultdict
 from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from io import StringIO
 from typing import NamedTuple
 
-from fontTools.feaLib.parser import Parser
 from fontTools.unicodedata.OTTags import DEFAULT_SCRIPT
 
 DEFAULT_LANGUAGE = "dflt"
@@ -70,12 +68,7 @@ class FeaComposer:
         self._current = self._root = list[Statement]()
 
     def code(
-        self,
-        *,
-        generate_languagesystem_statements=True,
-        wrap_blocks_with_empty_lines=False,
-        validate_parsing=False,
-        validate_glyph_set=False,
+        self, *, generate_languagesystem_statements=True, wrap_blocks_with_empty_lines=False
     ) -> str:
         statements = self._root.copy()
         if generate_languagesystem_statements:
@@ -99,15 +92,6 @@ class FeaComposer:
         code = "".join(i + "\n" for i in lines)
         if wrap_blocks_with_empty_lines:
             code = code.replace("\n" * 3, "\n" * 2)
-
-        if validate_parsing:
-            with StringIO(code) as f:
-                if validate_glyph_set:
-                    assert self.glyphs, "Need to populate the glyph set for validating"
-                    parser = Parser(f, glyphNames=self.glyphs)
-                else:
-                    parser = Parser(f)
-            _ = parser.parse()
 
         return code
 
