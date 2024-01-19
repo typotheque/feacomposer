@@ -105,9 +105,9 @@ class FeaComposer:
         self.raw("# " + line)
 
     def behavior(
-        self, description: str, tests: dict[str, list[str]], features: list[str] | None = None
+        self, description: str, tests: dict[str, list[str]], features: dict[str, bool] | None = None
     ) -> Behavior:
-        self.behaviors.append(behavior := Behavior(description, features or [], tests))
+        self.behaviors.append(behavior := Behavior(description, features or {}, tests))
         self.comment("[Behavior] " + behavior.description)
         return behavior
 
@@ -271,7 +271,7 @@ Statement = InlineStatement | BlockStatement
 @dataclass
 class Behavior:
     description: str
-    features: list[str]
+    features: dict[str, bool]
     tests: dict[str, list[str]]
 
 
