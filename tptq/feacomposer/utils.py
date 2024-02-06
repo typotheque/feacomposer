@@ -1,8 +1,27 @@
 from collections.abc import Callable, Iterable
+from io import StringIO
 from os import PathLike
 from typing import TextIO
 
 from fontTools.feaLib.parser import Parser
+
+
+def renameGlyphsInCode(
+    code: str,
+    renamer: Callable[[str], str],
+    *,
+    newNames: Iterable[str] = (),
+) -> str:
+
+    with StringIO(code) as f:
+        parser = GlyphRenamingParser(f, renamer, newNames=newNames)
+
+    lines = list[str]()
+    for line in parser.parse().asFea().splitlines():
+        if line := line.rstrip():
+            lines.append(line)
+
+    return "".join(i + "\n" for i in lines)
 
 
 class GlyphRenamingParser(Parser):
