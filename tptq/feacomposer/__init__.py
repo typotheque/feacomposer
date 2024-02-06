@@ -62,7 +62,6 @@ class FeaComposer:
     locales: defaultdict[str, set[str]] = field(default_factory=locales_factory)
     lookups: list[str] = field(default_factory=list)
     gdef_override: GDEFManager = field(default_factory=GDEFManager)
-    behaviors: list[Behavior] = field(default_factory=list)
 
     def __post_init__(self):
         self._current = self._root = list[Statement]()
@@ -103,13 +102,6 @@ class FeaComposer:
 
     def comment(self, line: str):
         self.raw("# " + line)
-
-    def behavior(
-        self, description: str, tests: dict[str, list[str]], features: dict[str, bool] | None = None
-    ) -> Behavior:
-        self.behaviors.append(behavior := Behavior(description, features or {}, tests))
-        self.comment("[Behavior] " + behavior.description)
-        return behavior
 
     # Inline statements:
 
@@ -266,13 +258,6 @@ class BlockStatement(NamedTuple):
 
 
 Statement = InlineStatement | BlockStatement
-
-
-@dataclass
-class Behavior:
-    description: str
-    features: dict[str, bool]
-    tests: dict[str, list[str]]
 
 
 @dataclass
