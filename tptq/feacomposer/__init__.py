@@ -192,9 +192,6 @@ class FeaComposer:
 
             yield name
 
-            if flags:
-                self.inline_statement("lookupflag", "0")
-
     def _next_available_anonymous_lookup_name(self) -> str:
         prefix = "anonymous."  # Lookup name cannot start with a digit
         if existing_names := [i for i in self.lookups if i.startswith(prefix)]:
