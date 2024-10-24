@@ -127,7 +127,7 @@ class FeaComposer:
 
         return name
 
-    def locale(self, script: str = DEFAULT_SCRIPT, language: str = DEFAULT_LANGUAGE):
+    def locale(self, script=DEFAULT_SCRIPT, language=DEFAULT_LANGUAGE):
         self.inline_statement("script", script)
         self.inline_statement("language", language)
         self.locales[script].add(language)
@@ -161,7 +161,7 @@ class FeaComposer:
     # Block statements:
 
     @contextmanager
-    def BlockStatement(self, keyword: str, /, value: str | None = None):
+    def BlockStatement(self, keyword: str, /, value="") -> Iterator[None]:
         block = BlockStatement.from_struct(keyword, value, children=[])
         self.append(block)
 
@@ -173,38 +173,55 @@ class FeaComposer:
             self._current = parent  # restore
 
     @contextmanager
-    def Lookup(self, name: str | None = None, /, *, flags: Iterable[str] | None = None):
+    def Lookup(
+        self, name="", /, *, feature="", flags: Iterable[str] | None = None
+    ) -> Iterator[str]:
         """
         possible values for `flags`:
         https://adobe-type-tools.github.io/afdko/OpenTypeFeatureFileSpecification.html#4d-lookupflag
         """
 
+        if feature:
+            with self.Feature(feature):
+                with self.Lookup(name, flags=flags) as name:
+                    yield name
+            return
+
         if name:
             if name in self.lookups:
                 raise ValueError(f"duplicated lookup name: {name}")
         else:
-            name = self._next_available_anonymous_lookup_name()
-        self.lookups.append(name)
+            name = self._next_available_unnamed_lookup_name()
 
-        with self.BlockStatement("lookup", name):
-            if flags := list(flags or []):
+        try:
+            with self.BlockStatement("lookup", name):
+                flags = list(flags or []) or ["0"]
                 self.inline_statement("lookupflag", *flags)
+                yield name
+        finally:
+            self.lookups.append(name)
 
-            yield name
+    def _next_available_unnamed_lookup_name(self) -> str:
+        """
+        Lookup names cannot start with a digit. The wording "unnamed" is better than "anonymous" because the latter sounds like an implied lookup block.
+        """
 
-    def _next_available_anonymous_lookup_name(self) -> str:
-        prefix = "anonymous."  # Lookup name cannot start with a digit
-        if existing_names := [i for i in self.lookups if i.startswith(prefix)]:
-            existing_numbers = [int(i.removeprefix(prefix)) for i in existing_names]
-            number = max(existing_numbers) + 1
-        else:
-            number = 1
+        prefix = "_"
+        existing_numbers = list[int]()
+        for name in self.lookups:
+            if name.startswith(prefix):
+                try:
+                    existing_numbers.append(int(name.removeprefix(prefix)))
+                except ValueError:
+                    continue
+        number = max(existing_numbers, default=0) + 1
         return prefix + str(number)
 
     @contextmanager
-    def Feature(self, tag: str, /, *, name: str | None = None):
+    def Feature(self, tag: str, /, *, name="") -> Iterator[None]:
+        assert len(tag) == 4, tag
         with self.BlockStatement("feature", tag):
-            if name is not None:
+            if name:
                 with self.BlockStatement("featureNames"):
                     self.inline_statement("name", f'"{name}"')
             yield
@@ -222,9 +239,7 @@ class BlockStatement(NamedTuple):
     suffix: str
 
     @classmethod
-    def from_struct(
-        cls, keyword: str, /, value: str | None = None, *, children: list[Statement]
-    ) -> BlockStatement:
+    def from_struct(cls, keyword: str, /, value="", *, children: list[Statement]) -> BlockStatement:
         if value:
             prefix = keyword + " " + value + " {"
             suffix = "} " + value + ";"
@@ -233,9 +248,7 @@ class BlockStatement(NamedTuple):
             suffix = "};"
         return cls(prefix, children, suffix)
 
-    def lines(
-        self, indentation: str = " " * 4, wrap_with_empty_lines: bool = False
-    ) -> Iterator[str]:
+    def lines(self, indentation=" " * 4, wrap_with_empty_lines=False) -> Iterator[str]:
         if wrap_with_empty_lines:
             yield ""
 
