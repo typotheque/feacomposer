@@ -1,26 +1,10 @@
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass
-from typing import overload
+from typing import Type, overload
 
 from fontTools.feaLib import ast
-
-
-class Name(ast.GlyphName):
-    glyph: str
-    feaComposer: FeaComposer
-
-    def __init__(self, name: str, feaComposer: FeaComposer):
-        super().__init__(glyph=name)
-        self.feaComposer = feaComposer
-
-    def asFea(self, indent=""):
-        if renamer := self.feaComposer.renamer:
-            ast.asFea(renamer(self.glyph))
-        else:
-            return super().asFea(indent)
-
 
 Class = ast.GlyphClass | ast.GlyphClassDefinition
 
@@ -30,11 +14,23 @@ class FeaComposer:
     root: ast.FeatureFile
     current: ast.Block
 
-    renamer: Callable[[str], str] | None = None
+    FormattedName: Type[ast.GlyphName]
 
-    def __init__(self, root: ast.FeatureFile | None = None) -> None:
+    def __init__(
+        self,
+        root: ast.FeatureFile | None = None,
+        nameFormatter: Callable[[str], str] = lambda name: name,
+    ) -> None:
         self.root = root or ast.FeatureFile()
         self.current = self.root
+
+        class FormattedName(ast.GlyphName):
+            glyph: str
+
+            def asFea(self, indent=""):
+                ast.asFea(nameFormatter(self.glyph))
+
+        self.FormattedName = FormattedName
 
     # Expressions:
 
@@ -42,7 +38,12 @@ class FeaComposer:
         self,
         items: Iterable[str | ast.GlyphClassDefinition],
     ) -> ast.GlyphClass:
-        return ast.GlyphClass(glyphs=[Name(i, self) if isinstance(i, str) else i for i in items])
+        return ast.GlyphClass(
+            glyphs=[
+                self.FormattedName(i) if isinstance(i, str) else ast.GlyphClassName(glyphclass=i)
+                for i in items
+            ]
+        )
 
     # Statements:
 
@@ -80,8 +81,8 @@ class FeaComposer:
         input: str | Class | Iterable[str | Class],
         output: str | Class | Iterable[str],
     ) -> ast.SingleSubstStatement | ast.MultipleSubstStatement | ast.LigatureSubstStatement:
-        _input = self._normalizeSequenceShorthand(input)
-        _output = self._normalizeSequenceShorthand(output)
+        _input = [*self._normalizedSequenceShorthand(input)]
+        _output = [*self._normalizedSequenceShorthand(output)]
         assert _input and _output, (_input, _output)
 
         if len(_input) == 1:
@@ -115,18 +116,16 @@ class FeaComposer:
     def _languageSystems(self) -> list[ast.LanguageSystemStatement]:
         return [i for i in self.root.statements if isinstance(i, ast.LanguageSystemStatement)]
 
-    def _normalizeSequenceShorthand(
+    def _normalizedSequenceShorthand(
         self,
         sequence: str | Class | Iterable[str | Class],
-    ) -> list[Name | ast.GlyphClass | ast.GlyphClassName]:
+    ) -> Iterator[ast.GlyphName | ast.GlyphClass | ast.GlyphClassName]:
         if isinstance(sequence, str | Class):
             sequence = [sequence]
-        normalized = list[Name | ast.GlyphClass | ast.GlyphClassName]()
         for item in sequence:
             if isinstance(item, str):
-                normalized.append(Name(item, self))
+                yield self.FormattedName(item, self)
             elif isinstance(item, ast.GlyphClassDefinition):
-                normalized.append(ast.GlyphClassName(glyphclass=item))
+                yield ast.GlyphClassName(glyphclass=item)
             else:
-                normalized.append(item)
-        return normalized
+                yield item
