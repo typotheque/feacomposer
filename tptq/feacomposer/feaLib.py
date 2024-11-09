@@ -1,12 +1,22 @@
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable, Iterator, Mapping
+from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass
-from typing import Type, overload
+from typing import overload
 
 from fontTools.feaLib import ast
 
 Class = ast.GlyphClass | ast.GlyphClassDefinition
+
+
+class BaseFormattedName(ast.GlyphName):
+    glyph: str
+
+    def asFea(self, indent=""):
+        ast.asFea(self.formatted())
+
+    def formatted(self) -> str:
+        return self.glyph
 
 
 @dataclass
@@ -14,21 +24,15 @@ class FeaComposer:
     root: ast.FeatureFile
     current: ast.Block
 
-    FormattedName: Type[ast.GlyphName]
+    FormattedName: type[BaseFormattedName]
 
     def __init__(
         self,
         root: ast.FeatureFile | None = None,
-        nameFormatter: Callable[[str], str] = lambda name: name,
+        FormattedName=BaseFormattedName,
     ) -> None:
         self.root = root or ast.FeatureFile()
         self.current = self.root
-
-        class FormattedName(ast.GlyphName):
-            glyph: str
-
-            def asFea(self, indent=""):
-                ast.asFea(nameFormatter(self.glyph))
 
         self.FormattedName = FormattedName
 
@@ -47,6 +51,14 @@ class FeaComposer:
 
     # Statements:
 
+    def raw(self, text: str) -> ast.Comment:
+        element = ast.Comment(text=text)
+        self.current.statements.append(element)
+        return element
+
+    def comment(self, text: str) -> ast.Comment:
+        return self.raw("# " + text)
+
     def namedClass(
         self,
         name: str,
@@ -55,14 +67,6 @@ class FeaComposer:
         statement = ast.GlyphClassDefinition(name, self.inlineClass(items))
         self.current.statements.append(statement)
         return statement
-
-    def raw(self, text: str) -> ast.Comment:
-        element = ast.Comment(text=text)
-        self.current.statements.append(element)
-        return element
-
-    def comment(self, text: str) -> ast.Comment:
-        return self.raw("# " + text)
 
     @overload
     def sub(self, input: str | Class, output: str) -> ast.SingleSubstStatement: ...
@@ -81,8 +85,8 @@ class FeaComposer:
         input: str | Class | Iterable[str | Class],
         output: str | Class | Iterable[str],
     ) -> ast.SingleSubstStatement | ast.MultipleSubstStatement | ast.LigatureSubstStatement:
-        _input = [*self._normalizedSequenceShorthand(input)]
-        _output = [*self._normalizedSequenceShorthand(output)]
+        _input = [*_normalizedSequenceShorthand(input, self.FormattedName)]
+        _output = [*_normalizedSequenceShorthand(output, self.FormattedName)]
         assert _input and _output, (_input, _output)
 
         if len(_input) == 1:
@@ -113,19 +117,17 @@ class FeaComposer:
             output=self.inlineClass(mapping.values()),
         )
 
-    def _languageSystems(self) -> list[ast.LanguageSystemStatement]:
-        return [i for i in self.root.statements if isinstance(i, ast.LanguageSystemStatement)]
 
-    def _normalizedSequenceShorthand(
-        self,
-        sequence: str | Class | Iterable[str | Class],
-    ) -> Iterator[ast.GlyphName | ast.GlyphClass | ast.GlyphClassName]:
-        if isinstance(sequence, str | Class):
-            sequence = [sequence]
-        for item in sequence:
-            if isinstance(item, str):
-                yield self.FormattedName(item, self)
-            elif isinstance(item, ast.GlyphClassDefinition):
-                yield ast.GlyphClassName(glyphclass=item)
-            else:
-                yield item
+def _normalizedSequenceShorthand(
+    sequence: str | Class | Iterable[str | Class],
+    FormattedName: type[BaseFormattedName],
+) -> Iterator[ast.GlyphName | ast.GlyphClass | ast.GlyphClassName]:
+    if isinstance(sequence, str | Class):
+        sequence = [sequence]
+    for item in sequence:
+        if isinstance(item, str):
+            yield FormattedName(item)
+        elif isinstance(item, ast.GlyphClassDefinition):
+            yield ast.GlyphClassName(glyphclass=item)
+        else:
+            yield item
