@@ -1,12 +1,21 @@
 from __future__ import annotations
 
-from collections.abc import Iterable, Iterator, Mapping
+from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import overload
 
 from fontTools.feaLib import ast
 
-Class = ast.GlyphClass | ast.GlyphClassDefinition
+AnyClass = ast.GlyphClass | ast.GlyphClassDefinition
+AnyGlyph = str | AnyClass
+
+
+@dataclass
+class MarkedInputItem:
+    marked: AnyGlyph
+
+
+NormalizedAnyGlyph = ast.GlyphName | ast.GlyphClass | ast.GlyphClassName
 
 
 class BaseFormattedName(ast.GlyphName):
@@ -38,18 +47,21 @@ class FeaComposer:
 
     # Expressions:
 
-    def inlineClass(
-        self,
-        items: Iterable[str | ast.GlyphClassDefinition],
-    ) -> ast.GlyphClass:
-        return ast.GlyphClass(
-            glyphs=[
-                self.FormattedName(i) if isinstance(i, str) else ast.GlyphClassName(glyphclass=i)
-                for i in items
-            ]
-        )
+    def inlineClass(self, items: Iterable[AnyGlyph]) -> ast.GlyphClass:
+        return ast.GlyphClass(glyphs=[self._normalizedAnyGlyph(i) for i in items])
 
-    # Statements:
+    def input(self, item: AnyGlyph) -> MarkedInputItem:
+        return MarkedInputItem(item)
+
+    def _normalizedAnyGlyph(self, item: AnyGlyph) -> NormalizedAnyGlyph:
+        if isinstance(item, str):
+            return self.FormattedName(item)
+        elif isinstance(item, ast.GlyphClassDefinition):
+            return ast.GlyphClassName(glyphclass=item)
+        else:
+            return item
+
+    # Statement-like elements:
 
     def raw(self, text: str) -> ast.Comment:
         element = ast.Comment(text=text)
@@ -69,65 +81,108 @@ class FeaComposer:
         return statement
 
     @overload
-    def sub(self, input: str | Class, output: str) -> ast.SingleSubstStatement: ...
+    def sub(self, input: AnyGlyph, output: str) -> ast.SingleSubstStatement: ...
 
     @overload
-    def sub(self, input: Class, output: Class) -> ast.SingleSubstStatement: ...
+    def sub(self, input: AnyClass, output: AnyClass) -> ast.SingleSubstStatement: ...
 
     @overload
     def sub(self, input: str, output: Iterable[str]) -> ast.MultipleSubstStatement: ...
 
     @overload
-    def sub(self, input: Iterable[str | Class], output: str) -> ast.LigatureSubstStatement: ...
+    def sub(self, input: str, output: AnyClass) -> ast.AlternateSubstStatement: ...
+
+    @overload
+    def sub(self, input: Iterable[AnyGlyph], output: str) -> ast.LigatureSubstStatement: ...
 
     def sub(
         self,
-        input: str | Class | Iterable[str | Class],
-        output: str | Class | Iterable[str],
-    ) -> ast.SingleSubstStatement | ast.MultipleSubstStatement | ast.LigatureSubstStatement:
-        _input = [*_normalizedSequenceShorthand(input, self.FormattedName)]
-        _output = [*_normalizedSequenceShorthand(output, self.FormattedName)]
-        assert _input and _output, (_input, _output)
+        input: AnyGlyph | Iterable[AnyGlyph],
+        output: AnyGlyph | Iterable[str],
+    ) -> (
+        ast.SingleSubstStatement
+        | ast.MultipleSubstStatement
+        | ast.AlternateSubstStatement
+        | ast.LigatureSubstStatement
+    ):
+        # Type checking instead of list length checking, so the overload signatures are accurate.
 
-        if len(_input) == 1:
-            if len(_output) == 1:
-                statement = ast.SingleSubstStatement(
-                    glyphs=_input, replace=_output, prefix=[], suffix=[], forceChain=False
-                )
-            else:
-                statement = ast.MultipleSubstStatement(
-                    prefix=[], glyph=_input[0], suffix=[], replacement=_output
-                )
-        elif len(_output) == 1:
+        _input = (
+            self._normalizedAnyGlyph(input)
+            if isinstance(input, AnyGlyph)
+            else [self._normalizedAnyGlyph(i) for i in input]
+        )
+        _output = (
+            self._normalizedAnyGlyph(output)
+            if isinstance(output, AnyGlyph)
+            else [self._normalizedAnyGlyph(i) for i in output]
+        )
+
+        if isinstance(_input, list):
+            assert not isinstance(_output, list), (_input, _output)
             statement = ast.LigatureSubstStatement(
-                prefix=[], glyphs=_input, suffix=[], replacement=_output[0], forceChain=False
+                prefix=[], glyphs=_input, suffix=[], replacement=_output, forceChain=False
+            )
+        elif isinstance(_output, list):
+            statement = ast.MultipleSubstStatement(
+                prefix=[], glyph=_input, suffix=[], replacement=_output
+            )
+        elif isinstance(_output, ast.GlyphName):
+            statement = ast.SingleSubstStatement(
+                glyphs=[_input], replace=[_output], prefix=[], suffix=[], forceChain=False
             )
         else:
-            raise ValueError(_input, _output)
+            statement = ast.AlternateSubstStatement(
+                prefix=[], glyph=[_input], suffix=[], replacement=[_output]
+            )
 
         self.current.statements.append(statement)
         return statement
 
-    def subMap(
-        self, mapping: Mapping[str, str] | Iterable[tuple[str, str]]
-    ) -> ast.SingleSubstStatement:
-        mapping = dict(mapping)
-        return self.sub(
-            input=self.inlineClass(mapping.keys()),
-            output=self.inlineClass(mapping.values()),
-        )
+    def contextualSub(
+        self,
+        context: Iterable[AnyGlyph | MarkedInputItem | ast.LookupBlock],
+        output: AnyGlyph | None = None,
+    ):
+        prefix = list[NormalizedAnyGlyph]()
+        input = list[NormalizedAnyGlyph]()
+        nestedLookups = list[list[ast.LookupBlock]]()
+        suffix = list[NormalizedAnyGlyph]()
+        for item in context:
+            if isinstance(item, ast.LookupBlock):
+                nestedLookups[-1].append(item)
+            elif isinstance(item, MarkedInputItem):
+                input.append(self._normalizedAnyGlyph(item.marked))
+                nestedLookups.append([])
+            else:
+                (suffix if input else prefix).append(self._normalizedAnyGlyph(item))
 
-
-def _normalizedSequenceShorthand(
-    sequence: str | Class | Iterable[str | Class],
-    FormattedName: type[BaseFormattedName],
-) -> Iterator[ast.GlyphName | ast.GlyphClass | ast.GlyphClassName]:
-    if isinstance(sequence, str | Class):
-        sequence = [sequence]
-    for item in sequence:
-        if isinstance(item, str):
-            yield FormattedName(item)
-        elif isinstance(item, ast.GlyphClassDefinition):
-            yield ast.GlyphClassName(glyphclass=item)
+        if output:
+            assert not any(len(i) for i in nestedLookups), (nestedLookups, output)
+            _output = self._normalizedAnyGlyph(output)
+            if len(input) == 1:
+                statement = ast.SingleSubstStatement(
+                    glyphs=input,
+                    replace=[_output],
+                    prefix=prefix,
+                    suffix=suffix,
+                    forceChain=True,
+                )
+            else:
+                statement = ast.LigatureSubstStatement(
+                    prefix=prefix,
+                    glyphs=input,
+                    suffix=suffix,
+                    replacement=_output,
+                    forceChain=True,
+                )
         else:
-            yield item
+            statement = ast.ChainContextSubstStatement(
+                prefix=prefix,
+                glyphs=input,
+                suffix=suffix,
+                lookups=[i or None for i in nestedLookups],
+            )
+
+        self.current.statements.append(statement)
+        return statement
