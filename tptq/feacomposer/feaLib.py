@@ -44,15 +44,16 @@ class FeaComposer:
     ) -> None:
         self.root = root or ast.FeatureFile()
         self.current = self.root
+        self.FormattedName = FormattedName
 
         languageSystems = {"DFLT": {"dflt"}} if languageSystems is None else languageSystems
-        self.current.statements.extend(
-            ast.LanguageSystemStatement(script=k, language=i)
-            for k, v in sorted(languageSystems.items())
-            for i in sorted(v)
-        )
-
-        self.FormattedName = FormattedName
+        for script, languages in sorted(languageSystems.items()):
+            assert len(script) == 4, script
+            for language in sorted(languages):
+                assert len(language) == 4, language
+                self.current.statements.append(
+                    ast.LanguageSystemStatement(script=script, language=language)
+                )
 
     # Expressions:
 
@@ -118,7 +119,7 @@ class FeaComposer:
                         languageSystems,
                         globalLanguageSystems,
                     )
-                    for language in languages:
+                    for language in sorted(languages):
                         scriptLanguagePairs.append(
                             (
                                 ast.ScriptStatement(script=script),
@@ -296,3 +297,41 @@ def _iterDescendants(block: ast.Block) -> Iterator[ast.Element]:
         yield element
         if isinstance(element, ast.Block):
             yield from _iterDescendants(element)
+
+
+def _test() -> None:
+    class FormattedName(BaseFormattedName):
+        def formatted(self) -> str:
+            return "Deva:" + self.glyph
+
+    c = FeaComposer(
+        languageSystems={
+            "DFLT": {"dflt"},
+            "deva": {"dflt", "MAR "},
+            "dev2": {"dflt", "MAR "},
+        },
+        FormattedName=FormattedName,
+    )
+
+    with c.Lookup(feature="rphf"):
+        c.sub(["ra", "virama"], "repha")
+
+    with c.Lookup("foo") as lookupFoo:
+        ...
+
+    with c.Lookup("bar") as lookupBar:
+        ...
+
+    with c.Lookup(
+        languageSystems={"dev2": {"dflt", "MAR "}},
+        feature="xxxx",
+        markAttachment=c.inlineClass(["virama"]),
+    ):
+        c.contextualSub(["a", c.input("b"), "c"], "d")
+        c.contextualSub(["x", c.input("y"), lookupFoo, c.input("z"), lookupBar])
+
+    print(c.root.asFea())
+
+
+if __name__ == "__main__":
+    _test()
