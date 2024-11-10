@@ -100,7 +100,7 @@ class FeaComposer:
         if feature:
             assert len(feature) == 4, feature
             lastStatement = self.current.statements[-1]
-            if isinstance(lastStatement, ast.FeatureBlock):
+            if isinstance(lastStatement, ast.FeatureBlock) and lastStatement.name == feature:
                 parent = lastStatement
             else:
                 parent = ast.FeatureBlock(name=feature)
