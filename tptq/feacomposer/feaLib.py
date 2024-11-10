@@ -17,8 +17,8 @@ AnyGlyph = str | AnyClass
 class BaseFormattedName(ast.GlyphName):
     glyph: str
 
-    def asFea(self, indent=""):
-        ast.asFea(self.formatted())
+    def asFea(self, indent="") -> str:
+        return ast.asFea(self.formatted())
 
     def formatted(self) -> str:
         return self.glyph
