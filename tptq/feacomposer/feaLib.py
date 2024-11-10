@@ -10,11 +10,11 @@ from fontTools.feaLib import ast
 LanguageSystemDict = dict[str | Literal["DFLT"], set[str | Literal["dflt"]]]
 LookupFlag = Literal["RightToLeft", "IgnoreBaseGlyphs", "IgnoreLigatures", "IgnoreMarks"]
 
-AnyClass = ast.GlyphClass | ast.GlyphClassDefinition
-AnyGlyph = str | AnyClass
+AnyGlyphClass = ast.GlyphClass | ast.GlyphClassDefinition
+AnyGlyph = str | AnyGlyphClass
 
 
-class Renamer(Protocol):
+class GlyphRenamer(Protocol):
     def __call__(self, name: str) -> str: ...
 
 
@@ -26,7 +26,7 @@ class ContextualInputItem:
 @dataclass
 class FeaComposer:
     languageSystems: LanguageSystemDict
-    renamer: Renamer
+    glyphRenamer: GlyphRenamer
 
     root: list[ast.Element]
     current: list[ast.Element]
@@ -35,10 +35,10 @@ class FeaComposer:
     def __init__(
         self,
         languageSystems: LanguageSystemDict | None = None,
-        renamer: Renamer = lambda name: name,
+        glyphRenamer: GlyphRenamer = lambda name: name,
     ) -> None:
         self.languageSystems = {"DFLT": {"dflt"}} if languageSystems is None else languageSystems
-        self.renamer = renamer
+        self.glyphRenamer = glyphRenamer
 
         self.root = list[ast.Element]()
         self.current = self.root
@@ -55,7 +55,7 @@ class FeaComposer:
 
     # Expressions:
 
-    def inlineClass(self, items: Iterable[AnyGlyph]) -> ast.GlyphClass:
+    def glyphClass(self, items: Iterable[AnyGlyph]) -> ast.GlyphClass:
         return ast.GlyphClass(glyphs=[self._normalizedAnyGlyph(i) for i in items])
 
     def input(self, item: AnyGlyph) -> ContextualInputItem:
@@ -73,12 +73,12 @@ class FeaComposer:
 
     # Misc statements:
 
-    def namedClass(
+    def namedGlyphClass(
         self,
         name: str,
         items: Iterable[str | ast.GlyphClassDefinition],
     ) -> ast.GlyphClassDefinition:
-        definition = ast.GlyphClassDefinition(name, self.inlineClass(items))
+        definition = ast.GlyphClassDefinition(name, self.glyphClass(items))
         self.current.append(definition)
         return definition
 
@@ -92,8 +92,8 @@ class FeaComposer:
         languageSystems: LanguageSystemDict | None = None,
         feature: str = "",
         flags: Iterable[LookupFlag] = (),
-        markAttachment: AnyClass | None = None,
-        markFilteringSet: AnyClass | None = None,
+        markAttachment: AnyGlyphClass | None = None,
+        markFilteringSet: AnyGlyphClass | None = None,
     ) -> Iterator[ast.LookupBlock]:
         backup = self.current
 
@@ -157,13 +157,13 @@ class FeaComposer:
     def sub(self, input: AnyGlyph, output: str) -> ast.SingleSubstStatement: ...
 
     @overload
-    def sub(self, input: AnyClass, output: AnyClass) -> ast.SingleSubstStatement: ...
+    def sub(self, input: AnyGlyphClass, output: AnyGlyphClass) -> ast.SingleSubstStatement: ...
 
     @overload
     def sub(self, input: str, output: Iterable[str]) -> ast.MultipleSubstStatement: ...
 
     @overload
-    def sub(self, input: str, output: AnyClass) -> ast.AlternateSubstStatement: ...
+    def sub(self, input: str, output: AnyGlyphClass) -> ast.AlternateSubstStatement: ...
 
     @overload
     def sub(self, input: Iterable[AnyGlyph], output: str) -> ast.LigatureSubstStatement: ...
@@ -264,7 +264,7 @@ class FeaComposer:
 
     def _normalizedAnyGlyph(self, item: AnyGlyph) -> _NormalizedAnyGlyph:
         if isinstance(item, str):
-            return ast.GlyphName(glyph=self.renamer(item))
+            return ast.GlyphName(glyph=self.glyphRenamer(item))
         elif isinstance(item, ast.GlyphClassDefinition):
             return ast.GlyphClassName(glyphclass=item)
         else:
@@ -282,14 +282,14 @@ def _test() -> None:
             "deva": {"dflt", "MAR "},
             "dev2": {"dflt", "MAR "},
         },
-        renamer=lambda name: "Deva:" + name,
+        glyphRenamer=lambda name: "Deva:" + name,
     )
 
-    someClass = c.namedClass("foo", ["a"])
+    someClass = c.namedGlyphClass("foo", ["a"])
 
     with c.Lookup(feature="rphf"):
         c.sub(["ra", "virama"], "repha")
-        c.sub(["a", c.inlineClass(["a"]), someClass], "b")
+        c.sub(["a", c.glyphClass(["a"]), someClass], "b")
 
     with c.Lookup("foo") as lookupFoo:
         pass
@@ -300,7 +300,7 @@ def _test() -> None:
     with c.Lookup(
         languageSystems={"dev2": {"dflt", "MAR "}},
         feature="xxxx",
-        markAttachment=c.inlineClass(["virama"]),
+        markAttachment=c.glyphClass(["virama"]),
     ):
         c.contextualSub(["a", c.input("b"), "c"], "d")
         c.contextualSub(["x", c.input("y"), lookupFoo, c.input("z"), lookupBar])
