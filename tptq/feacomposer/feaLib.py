@@ -1,21 +1,17 @@
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import overload
+from typing import Literal, get_args, overload
 
 from fontTools.feaLib import ast
 
+LanguageSystemDict = dict[str | Literal["DFLT"], set[str | Literal["dflt"]]]
+LookupFlag = Literal["RightToLeft", "IgnoreBaseGlyphs", "IgnoreLigatures", "IgnoreMarks"]
+
 AnyClass = ast.GlyphClass | ast.GlyphClassDefinition
 AnyGlyph = str | AnyClass
-
-
-@dataclass
-class MarkedInputItem:
-    marked: AnyGlyph
-
-
-NormalizedAnyGlyph = ast.GlyphName | ast.GlyphClass | ast.GlyphClassName
 
 
 class BaseFormattedName(ast.GlyphName):
@@ -29,19 +25,32 @@ class BaseFormattedName(ast.GlyphName):
 
 
 @dataclass
+class ContextualInputItem:
+    marked: AnyGlyph
+
+
+@dataclass
 class FeaComposer:
     root: ast.FeatureFile
     current: ast.Block
-
     FormattedName: type[BaseFormattedName]
 
     def __init__(
         self,
         root: ast.FeatureFile | None = None,
-        FormattedName=BaseFormattedName,
+        *,
+        languageSystems: LanguageSystemDict | None = None,
+        FormattedName: type[BaseFormattedName] = BaseFormattedName,
     ) -> None:
         self.root = root or ast.FeatureFile()
         self.current = self.root
+
+        languageSystems = {"DFLT": {"dflt"}} if languageSystems is None else languageSystems
+        self.current.statements.extend(
+            ast.LanguageSystemStatement(script=k, language=i)
+            for k, v in sorted(languageSystems.items())
+            for i in sorted(v)
+        )
 
         self.FormattedName = FormattedName
 
@@ -50,35 +59,114 @@ class FeaComposer:
     def inlineClass(self, items: Iterable[AnyGlyph]) -> ast.GlyphClass:
         return ast.GlyphClass(glyphs=[self._normalizedAnyGlyph(i) for i in items])
 
-    def input(self, item: AnyGlyph) -> MarkedInputItem:
-        return MarkedInputItem(item)
+    def input(self, item: AnyGlyph) -> ContextualInputItem:
+        return ContextualInputItem(item)
 
-    def _normalizedAnyGlyph(self, item: AnyGlyph) -> NormalizedAnyGlyph:
-        if isinstance(item, str):
-            return self.FormattedName(item)
-        elif isinstance(item, ast.GlyphClassDefinition):
-            return ast.GlyphClassName(glyphclass=item)
-        else:
-            return item
-
-    # Statement-like elements:
-
-    def raw(self, text: str) -> ast.Comment:
-        element = ast.Comment(text=text)
-        self.current.statements.append(element)
-        return element
+    # Comment or raw text:
 
     def comment(self, text: str) -> ast.Comment:
         return self.raw("# " + text)
+
+    def raw(self, text: str) -> ast.Comment:
+        comment = ast.Comment(text=text)
+        self.current.statements.append(comment)
+        return comment
+
+    # Misc statements:
 
     def namedClass(
         self,
         name: str,
         items: Iterable[str | ast.GlyphClassDefinition],
     ) -> ast.GlyphClassDefinition:
-        statement = ast.GlyphClassDefinition(name, self.inlineClass(items))
-        self.current.statements.append(statement)
-        return statement
+        definition = ast.GlyphClassDefinition(name, self.inlineClass(items))
+        self.current.statements.append(definition)
+        return definition
+
+    # Block statements:
+
+    @contextmanager
+    def Lookup(
+        self,
+        name: str = "",
+        *,
+        languageSystems: LanguageSystemDict | None = None,
+        feature: str = "",
+        flags: Iterable[LookupFlag] = (),
+        markAttachment: AnyClass | None = None,
+        markFilteringSet: AnyClass | None = None,
+    ) -> Iterator[ast.LookupBlock]:
+        scriptLanguagePairs = list[tuple[ast.ScriptStatement, ast.LanguageStatement]]()
+        if feature:
+            assert len(feature) == 4, feature
+            lastStatement = self.current.statements[-1]
+            if isinstance(lastStatement, ast.FeatureBlock):
+                parent = lastStatement
+            else:
+                parent = ast.FeatureBlock(name=feature)
+                self.current.statements.append(parent)
+            if languageSystems is not None:
+                assert languageSystems, languageSystems
+                globalLanguageSystems = LanguageSystemDict()
+                for element in self.root.statements:
+                    if isinstance(element, ast.LanguageSystemStatement):
+                        globalLanguageSystems.setdefault(element.script, set()).add(
+                            element.language
+                        )
+                for script, languages in sorted(languageSystems.items()):
+                    assert languages <= globalLanguageSystems[script], (
+                        languageSystems,
+                        globalLanguageSystems,
+                    )
+                    for language in languages:
+                        scriptLanguagePairs.append(
+                            (
+                                ast.ScriptStatement(script=script),
+                                ast.LanguageStatement(language=language),
+                            )
+                        )
+        else:
+            assert languageSystems is None, languageSystems
+            parent = self.current
+
+        if not name:
+            prefix = "_"
+            maxNumber = 0
+            for element in _iterDescendants(self.root):
+                if isinstance(element, ast.LookupBlock) and element.name.startswith(prefix):
+                    try:
+                        number = int(element.name.removeprefix(prefix))
+                    except ValueError:
+                        continue
+                    maxNumber = max(maxNumber, number)
+            name = prefix + str(maxNumber + 1)
+        lookupBlock = ast.LookupBlock(name=name)
+
+        if scriptLanguagePairs:
+            parent.statements.extend(scriptLanguagePairs.pop(0))
+        parent.statements.append(lookupBlock)
+        for pair in scriptLanguagePairs:
+            parent.statements.extend(pair)
+            parent.statements.append(ast.LookupReferenceStatement(lookup=lookupBlock))
+
+        if flags or markAttachment or markFilteringSet:
+            statement = ast.LookupFlagStatement(
+                value=sum(2 ** _lookupFlags.index(i) for i in flags),
+                markAttachment=markAttachment,
+                markFilteringSet=markFilteringSet,
+            )
+        else:
+            statement = ast.LookupFlagStatement(value=0)
+        lookupBlock.statements.append(statement)
+
+        backup = self.current
+        self.current = lookupBlock
+        try:
+            yield lookupBlock
+        finally:
+            self.current = backup
+
+    # Substitution statements:
 
     @overload
     def sub(self, input: AnyGlyph, output: str) -> ast.SingleSubstStatement: ...
@@ -141,17 +229,17 @@ class FeaComposer:
 
     def contextualSub(
         self,
-        context: Iterable[AnyGlyph | MarkedInputItem | ast.LookupBlock],
+        context: Iterable[AnyGlyph | ContextualInputItem | ast.LookupBlock],
         output: AnyGlyph | None = None,
-    ):
-        prefix = list[NormalizedAnyGlyph]()
-        input = list[NormalizedAnyGlyph]()
+    ) -> ast.SingleSubstStatement | ast.LigatureSubstStatement | ast.ChainContextSubstStatement:
+        prefix = list[_NormalizedAnyGlyph]()
+        input = list[_NormalizedAnyGlyph]()
         nestedLookups = list[list[ast.LookupBlock]]()
-        suffix = list[NormalizedAnyGlyph]()
-        for item in context:
+        suffix = list[_NormalizedAnyGlyph]()
+        for item in context:  # TODO: Validate relative order between different types
             if isinstance(item, ast.LookupBlock):
                 nestedLookups[-1].append(item)
-            elif isinstance(item, MarkedInputItem):
+            elif isinstance(item, ContextualInputItem):
                 input.append(self._normalizedAnyGlyph(item.marked))
                 nestedLookups.append([])
             else:
@@ -186,3 +274,25 @@ class FeaComposer:
 
         self.current.statements.append(statement)
         return statement
+
+    # Internal:
+
+    def _normalizedAnyGlyph(self, item: AnyGlyph) -> _NormalizedAnyGlyph:
+        if isinstance(item, str):
+            return self.FormattedName(item)
+        elif isinstance(item, ast.GlyphClassDefinition):
+            return ast.GlyphClassName(glyphclass=item)
+        else:
+            return item
+
+
+_lookupFlags: tuple[LookupFlag, ...] = get_args(LookupFlag)
+_NormalizedAnyGlyph = ast.GlyphName | ast.GlyphClass | ast.GlyphClassName
+
+
+def _iterDescendants(block: ast.Block) -> Iterator[ast.Element]:
+    element: ast.Element
+    for element in block.statements:
+        yield element
+        if isinstance(element, ast.Block):
+            yield from _iterDescendants(element)
