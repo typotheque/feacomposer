@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Literal, get_args, overload
+from typing import Literal, Protocol, get_args, overload
 
 from fontTools.feaLib import ast
 
@@ -14,14 +14,8 @@ AnyClass = ast.GlyphClass | ast.GlyphClassDefinition
 AnyGlyph = str | AnyClass
 
 
-class BaseFormattedName(ast.GlyphName):
-    glyph: str
-
-    def asFea(self, indent="") -> str:
-        return ast.asFea(self.formatted())
-
-    def formatted(self) -> str:
-        return self.glyph
+class Renamer(Protocol):
+    def __call__(self, name: str) -> str: ...
 
 
 @dataclass
@@ -31,29 +25,33 @@ class ContextualInputItem:
 
 @dataclass
 class FeaComposer:
-    root: ast.FeatureFile
-    current: ast.Block
-    FormattedName: type[BaseFormattedName]
+    languageSystems: LanguageSystemDict
+    renamer: Renamer
+
+    root: list[ast.Element]
+    current: list[ast.Element]
+    nextLookupNumber: int
 
     def __init__(
         self,
-        root: ast.FeatureFile | None = None,
-        *,
         languageSystems: LanguageSystemDict | None = None,
-        FormattedName: type[BaseFormattedName] = BaseFormattedName,
+        renamer: Renamer = lambda name: name,
     ) -> None:
-        self.root = root or ast.FeatureFile()
-        self.current = self.root
-        self.FormattedName = FormattedName
+        self.languageSystems = {"DFLT": {"dflt"}} if languageSystems is None else languageSystems
+        self.renamer = renamer
 
-        languageSystems = {"DFLT": {"dflt"}} if languageSystems is None else languageSystems
-        for script, languages in sorted(languageSystems.items()):
-            assert len(script) == 4, script
-            for language in sorted(languages):
-                assert len(language) == 4, language
-                self.current.statements.append(
-                    ast.LanguageSystemStatement(script=script, language=language)
-                )
+        self.root = list[ast.Element]()
+        self.current = self.root
+        self.nextLookupNumber = 1
+
+    def code(self) -> str:
+        featureFile = ast.FeatureFile()
+        featureFile.statements = [
+            ast.LanguageSystemStatement(script=k, language=i)
+            for k, v in sorted(self.languageSystems.items())
+            for i in sorted(v)
+        ] + self.root
+        return featureFile.asFea()
 
     # Expressions:
 
@@ -70,7 +68,7 @@ class FeaComposer:
 
     def raw(self, text: str) -> ast.Comment:
         comment = ast.Comment(text=text)
-        self.current.statements.append(comment)
+        self.current.append(comment)
         return comment
 
     # Misc statements:
@@ -81,7 +79,7 @@ class FeaComposer:
         items: Iterable[str | ast.GlyphClassDefinition],
     ) -> ast.GlyphClassDefinition:
         definition = ast.GlyphClassDefinition(name, self.inlineClass(items))
-        self.current.statements.append(definition)
+        self.current.append(definition)
         return definition
 
     # Block statements:
@@ -97,59 +95,47 @@ class FeaComposer:
         markAttachment: AnyClass | None = None,
         markFilteringSet: AnyClass | None = None,
     ) -> Iterator[ast.LookupBlock]:
-        scriptLanguagePairs = list[tuple[ast.ScriptStatement, ast.LanguageStatement]]()
-        if feature:
-            assert len(feature) == 4, feature
-            lastStatement = self.current.statements[-1]
-            if isinstance(lastStatement, ast.FeatureBlock) and lastStatement.name == feature:
-                parent = lastStatement
-            else:
-                parent = ast.FeatureBlock(name=feature)
-                self.current.statements.append(parent)
-            if languageSystems is not None:
-                assert languageSystems, languageSystems
-                globalLanguageSystems = LanguageSystemDict()
-                for element in self.root.statements:
-                    if isinstance(element, ast.LanguageSystemStatement):
-                        globalLanguageSystems.setdefault(element.script, set()).add(
-                            element.language
-                        )
-                for script, languages in sorted(languageSystems.items()):
-                    assert languages <= globalLanguageSystems[script], (
-                        languageSystems,
-                        globalLanguageSystems,
-                    )
-                    for language in sorted(languages):
-                        scriptLanguagePairs.append(
-                            (
-                                ast.ScriptStatement(script=script),
-                                ast.LanguageStatement(language=language),
-                            )
-                        )
-        else:
-            assert languageSystems is None, languageSystems
-            parent = self.current
+        backup = self.current
 
         if not name:
-            prefix = "_"
-            maxNumber = 0
-            for element in _iterDescendants(self.root):
-                if isinstance(element, ast.LookupBlock) and element.name.startswith(prefix):
-                    try:
-                        number = int(element.name.removeprefix(prefix))
-                    except ValueError:
-                        continue
-                    maxNumber = max(maxNumber, number)
-            name = prefix + str(maxNumber + 1)
+            name = f"_{self.nextLookupNumber}"
+            self.nextLookupNumber += 1
         lookupBlock = ast.LookupBlock(name=name)
 
-        if scriptLanguagePairs:
-            parent.statements.extend(scriptLanguagePairs.pop(0))
-        parent.statements.append(lookupBlock)
-        for pair in scriptLanguagePairs:
-            parent.statements.extend(pair)
-            parent.statements.append(ast.LookupReferenceStatement(lookup=lookupBlock))
+        if feature:
+            lastElement = self.current[-1]
+            if isinstance(lastElement, ast.FeatureBlock) and lastElement.name == feature:
+                featureBlock = lastElement
+            else:
+                featureBlock = ast.FeatureBlock(name=feature)
+                self.current.append(featureBlock)
+            scriptLanguagePairs = list[tuple[ast.ScriptStatement, ast.LanguageStatement]]()
+            if languageSystems is not None:
+                assert languageSystems, languageSystems
+                for script, languages in sorted(languageSystems.items()):
+                    assert languages <= self.languageSystems[script], (
+                        languageSystems,
+                        self.languageSystems,
+                    )
+                    scriptLanguagePairs.extend(
+                        (
+                            ast.ScriptStatement(script=script),
+                            ast.LanguageStatement(language=i),
+                        )
+                        for i in sorted(languages)
+                    )
+            self.current = featureBlock.statements
+            if scriptLanguagePairs:
+                self.current.extend(scriptLanguagePairs.pop(0))
+            self.current.append(lookupBlock)
+            for pair in scriptLanguagePairs:
+                self.current.extend(pair)
+                self.current.append(ast.LookupReferenceStatement(lookup=lookupBlock))
+        else:
+            assert languageSystems is None, languageSystems
+            self.current.append(lookupBlock)
 
+        self.current = lookupBlock.statements
         if flags or markAttachment or markFilteringSet:
             statement = ast.LookupFlagStatement(
                 value=sum(2 ** _lookupFlags.index(i) for i in flags),
@@ -158,10 +144,8 @@ class FeaComposer:
             )
         else:
             statement = ast.LookupFlagStatement(value=0)
-        lookupBlock.statements.append(statement)
+        self.current.append(statement)
 
-        backup = self.current
-        self.current = lookupBlock
         try:
             yield lookupBlock
         finally:
@@ -225,7 +209,7 @@ class FeaComposer:
                 prefix=[], glyph=[_input], suffix=[], replacement=[_output]
             )
 
-        self.current.statements.append(statement)
+        self.current.append(statement)
         return statement
 
     def contextualSub(
@@ -273,14 +257,14 @@ class FeaComposer:
                 lookups=[i or None for i in nestedLookups],
             )
 
-        self.current.statements.append(statement)
+        self.current.append(statement)
         return statement
 
     # Internal:
 
     def _normalizedAnyGlyph(self, item: AnyGlyph) -> _NormalizedAnyGlyph:
         if isinstance(item, str):
-            return self.FormattedName(item)
+            return ast.GlyphName(glyph=self.renamer(item))
         elif isinstance(item, ast.GlyphClassDefinition):
             return ast.GlyphClassName(glyphclass=item)
         else:
@@ -291,36 +275,27 @@ _lookupFlags: tuple[LookupFlag, ...] = get_args(LookupFlag)
 _NormalizedAnyGlyph = ast.GlyphName | ast.GlyphClass | ast.GlyphClassName
 
 
-def _iterDescendants(block: ast.Block) -> Iterator[ast.Element]:
-    element: ast.Element
-    for element in block.statements:
-        yield element
-        if isinstance(element, ast.Block):
-            yield from _iterDescendants(element)
-
-
 def _test() -> None:
-    class FormattedName(BaseFormattedName):
-        def formatted(self) -> str:
-            return "Deva:" + self.glyph
-
     c = FeaComposer(
         languageSystems={
             "DFLT": {"dflt"},
             "deva": {"dflt", "MAR "},
             "dev2": {"dflt", "MAR "},
         },
-        FormattedName=FormattedName,
+        renamer=lambda name: "Deva:" + name,
     )
+
+    someClass = c.namedClass("foo", ["a"])
 
     with c.Lookup(feature="rphf"):
         c.sub(["ra", "virama"], "repha")
+        c.sub(["a", c.inlineClass(["a"]), someClass], "b")
 
     with c.Lookup("foo") as lookupFoo:
-        ...
+        pass
 
     with c.Lookup("bar") as lookupBar:
-        ...
+        pass
 
     with c.Lookup(
         languageSystems={"dev2": {"dflt", "MAR "}},
@@ -330,7 +305,7 @@ def _test() -> None:
         c.contextualSub(["a", c.input("b"), "c"], "d")
         c.contextualSub(["x", c.input("y"), lookupFoo, c.input("z"), lookupBar])
 
-    print(c.root.asFea())
+    print(c.code())
 
 
 if __name__ == "__main__":
