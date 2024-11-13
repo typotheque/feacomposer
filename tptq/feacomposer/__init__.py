@@ -103,10 +103,12 @@ class FeaComposer:
         lookupBlock = ast.LookupBlock(name=name)
 
         if feature:
-            lastElement = self.current[-1]
-            if isinstance(lastElement, ast.FeatureBlock) and lastElement.name == feature:
-                featureBlock = lastElement
-            else:
+            featureBlock: ast.FeatureBlock | None = None
+            if self.current:
+                lastElement = self.current[-1]
+                if isinstance(lastElement, ast.FeatureBlock) and lastElement.name == feature:
+                    featureBlock = lastElement
+            if not featureBlock:
                 featureBlock = ast.FeatureBlock(name=feature)
                 self.current.append(featureBlock)
             scriptLanguagePairs = list[tuple[ast.ScriptStatement, ast.LanguageStatement]]()
