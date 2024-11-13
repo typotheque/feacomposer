@@ -1,4 +1,4 @@
-from tptq.feacomposer.feaLib import FeaComposer
+from tptq.feacomposer import FeaComposer
 
 
 def testFeaComposer():

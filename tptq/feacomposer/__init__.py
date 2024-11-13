@@ -1,317 +1,275 @@
 from __future__ import annotations
 
-from collections import defaultdict
 from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
-from dataclasses import dataclass, field
-from typing import NamedTuple
+from dataclasses import dataclass
+from typing import Literal, Protocol, get_args, overload
 
-from fontTools.unicodedata.OTTags import DEFAULT_SCRIPT
+from fontTools.feaLib import ast
 
-DEFAULT_LANGUAGE = "dflt"
+LanguageSystemDict = dict[str | Literal["DFLT"], set[str | Literal["dflt"]]]
+LookupFlag = Literal["RightToLeft", "IgnoreBaseGlyphs", "IgnoreLigatures", "IgnoreMarks"]
 
-
-def glyph_class(members: Iterable[str]) -> str:
-    return "[" + " ".join(members) + "]"
-
-
-def target(targeted: str) -> str:
-    return targeted + "'"
+AnyGlyphClass = ast.GlyphClass | ast.GlyphClassDefinition
+AnyGlyph = str | AnyGlyphClass
 
 
-def lookup(name: str) -> str:
-    return f"lookup {name}"
-
-
-def locales_factory():
-    locales = defaultdict[str, set[str]](lambda: {DEFAULT_LANGUAGE})
-    locales[DEFAULT_SCRIPT]
-    return locales
+class GlyphRenamer(Protocol):
+    def __call__(self, name: str) -> str: ...
 
 
 @dataclass
-class GDEFManager:
-    unassigned: set[str] = field(default_factory=set)
-    bases: set[str] = field(default_factory=set)
-    ligatures: set[str] = field(default_factory=set)
-    marks: set[str] = field(default_factory=set)
-    components: set[str] = field(default_factory=set)
-
-    @property
-    def class_to_glyphs(self) -> dict[int, set[str]]:
-        return {
-            0: self.unassigned,
-            1: self.bases,
-            2: self.ligatures,
-            3: self.marks,
-            4: self.components,
-        }
+class ContextualInputItem:
+    marked: AnyGlyph
 
 
 @dataclass
 class FeaComposer:
-    # Convenient context stores:
+    languageSystems: LanguageSystemDict
+    glyphRenamer: GlyphRenamer
 
-    cmap: dict[int, str] = field(default_factory=dict)
-    glyphs: list[str] = field(default_factory=list)
-    units_per_em: float = 1000
+    root: list[ast.Element]
+    current: list[ast.Element]
+    nextLookupNumber: int
 
-    # Internal states:
+    def __init__(
+        self,
+        languageSystems: LanguageSystemDict | None = None,
+        glyphRenamer: GlyphRenamer = lambda name: name,
+    ) -> None:
+        self.languageSystems = {"DFLT": {"dflt"}} if languageSystems is None else languageSystems
+        self.glyphRenamer = glyphRenamer
 
-    glyph_classes: dict[str, set[str]] = field(default_factory=dict)
-    locales: defaultdict[str, set[str]] = field(default_factory=locales_factory)
-    lookups: list[str] = field(default_factory=list)
-    gdef_override: GDEFManager = field(default_factory=GDEFManager)
+        self.root = list[ast.Element]()
+        self.current = self.root
+        self.nextLookupNumber = 1
 
-    def __post_init__(self):
-        self._current = self._root = list[Statement]()
+    def code(self) -> str:
+        featureFile = ast.FeatureFile()
+        featureFile.statements = [
+            ast.LanguageSystemStatement(script=k, language=i)
+            for k, v in sorted(self.languageSystems.items())
+            for i in sorted(v)
+        ] + self.root
+        return featureFile.asFea()
 
-    def code(
-        self, *, generate_languagesystem_statements=True, wrap_blocks_with_empty_lines=False
-    ) -> str:
-        statements = self._root.copy()
-        if generate_languagesystem_statements:
-            statements = [
-                InlineStatement.from_fields("languagesystem", script, language)
-                for script, languages in sorted(self.locales.items())
-                for language in sorted(languages)
-            ] + statements
+    # Expressions:
 
-        lines = list[str]()
-        for statement in statements:
-            if isinstance(statement, str):
-                lines.append(statement)
-            else:
-                lines += statement.lines(wrap_with_empty_lines=wrap_blocks_with_empty_lines)
-        if wrap_blocks_with_empty_lines:
-            for index in [0, -1]:
-                if not lines[index]:
-                    lines.pop(index)
+    def glyphClass(self, items: Iterable[AnyGlyph]) -> ast.GlyphClass:
+        return ast.GlyphClass(glyphs=[self._normalizedAnyGlyph(i) for i in items])
 
-        code = "".join(i + "\n" for i in lines)
-        if wrap_blocks_with_empty_lines:
-            code = code.replace("\n" * 3, "\n" * 2)
+    def input(self, item: AnyGlyph) -> ContextualInputItem:
+        return ContextualInputItem(item)
 
-        return code
+    # Comment or raw text:
 
-    def append(self, statement: Statement):
-        self._current.append(statement)
+    def comment(self, text: str) -> ast.Comment:
+        return self.raw("# " + text)
 
-    def raw(self, line: str):
-        self.append(InlineStatement(line))  # HACK
+    def raw(self, text: str) -> ast.Comment:
+        comment = ast.Comment(text=text)
+        self.current.append(comment)
+        return comment
 
-    def comment(self, line: str):
-        self.raw("# " + line)
+    # Misc statements:
 
-    # Inline statements:
-
-    def inline_statement(self, *fields: str):
-        self.append(InlineStatement.from_fields(*fields))
-
-    def glyph_class(self, name: str, members: Iterable[str]) -> str:
-        if not name.startswith("@"):
-            raise ValueError(f"glyph class name must start with @: {name}")
-        if name in self.glyph_classes:
-            raise ValueError(f"duplicated glyph class name: {name}")
-
-        self.inline_statement(name, "=", glyph_class(members))
-
-        glyphs = self.glyph_classes[name] = set[str]()
-        for member in members:
-            if member.startswith("@"):
-                glyphs |= self.glyph_classes[member]
-            elif "[" in member:  # class literal
-                raise NotImplementedError
-            else:
-                glyphs.add(member)
-
-        return name
-
-    def locale(self, script=DEFAULT_SCRIPT, language=DEFAULT_LANGUAGE):
-        self.inline_statement("script", script)
-        self.inline_statement("language", language)
-        self.locales[script].add(language)
-
-    def sub(self, target: str | Iterable[str], replacement: str | Iterable[str] | None = None):
-        if isinstance(target, str):
-            target = target.split()
-
-        if replacement is None:
-            # `by NULL` cannot be always added because “omitting the `by` clause is equivalent to adding `by NULL`” is only applicable to GSUB type 1 (single substitution) and 8 (reverse chaining single substitution): https://adobe-type-tools.github.io/afdko/OpenTypeFeatureFileSpecification.html#5-glyph-substitution-gsub-rules
-            self.inline_statement("sub", *target)
-        else:
-            if isinstance(replacement, str):
-                replacement = replacement.split()
-            self.inline_statement("sub", *target, "by", *replacement)
-
-    substitute = sub
-
-    def ignore_sub(self, target: str | Iterable[str]):
-        if isinstance(target, str):
-            target = target.split()
-        self.inline_statement("ignore", "sub", *target)
-
-    ignore_substitute = ignore_sub
-
-    def lookup(self, name: str, /):
-        if name not in self.lookups:
-            raise ValueError(f"unknown lookup name: {name}")
-        self.inline_statement("lookup", name)
+    def namedGlyphClass(
+        self,
+        name: str,
+        items: Iterable[str | ast.GlyphClassDefinition],
+    ) -> ast.GlyphClassDefinition:
+        definition = ast.GlyphClassDefinition(name, self.glyphClass(items))
+        self.current.append(definition)
+        return definition
 
     # Block statements:
 
     @contextmanager
-    def BlockStatement(self, keyword: str, /, value="") -> Iterator[None]:
-        block = BlockStatement.from_struct(keyword, value, children=[])
-        self.append(block)
-
-        parent = self._current  # backup
-        try:
-            self._current = block.children  # switch
-            yield
-        finally:
-            self._current = parent  # restore
-
-    @contextmanager
     def Lookup(
-        self, name="", /, *, feature="", flags: Iterable[str] | None = None
-    ) -> Iterator[str]:
-        """
-        possible values for `flags`:
-        https://adobe-type-tools.github.io/afdko/OpenTypeFeatureFileSpecification.html#4d-lookupflag
-        """
+        self,
+        name: str = "",
+        *,
+        languageSystems: LanguageSystemDict | None = None,
+        feature: str = "",
+        flags: Iterable[LookupFlag] = (),
+        markAttachment: AnyGlyphClass | None = None,
+        markFilteringSet: AnyGlyphClass | None = None,
+    ) -> Iterator[ast.LookupBlock]:
+        backup = self.current
+
+        if not name:
+            name = f"_{self.nextLookupNumber}"
+            self.nextLookupNumber += 1
+        lookupBlock = ast.LookupBlock(name=name)
 
         if feature:
-            with self.Feature(feature):
-                with self.Lookup(name, flags=flags) as name:
-                    yield name
-            return
-
-        if name:
-            if name in self.lookups:
-                raise ValueError(f"duplicated lookup name: {name}")
+            lastElement = self.current[-1]
+            if isinstance(lastElement, ast.FeatureBlock) and lastElement.name == feature:
+                featureBlock = lastElement
+            else:
+                featureBlock = ast.FeatureBlock(name=feature)
+                self.current.append(featureBlock)
+            scriptLanguagePairs = list[tuple[ast.ScriptStatement, ast.LanguageStatement]]()
+            if languageSystems is not None:
+                assert languageSystems, languageSystems
+                for script, languages in sorted(languageSystems.items()):
+                    assert languages <= self.languageSystems[script], (
+                        languageSystems,
+                        self.languageSystems,
+                    )
+                    scriptLanguagePairs.extend(
+                        (
+                            ast.ScriptStatement(script=script),
+                            ast.LanguageStatement(language=i),
+                        )
+                        for i in sorted(languages)
+                    )
+            self.current = featureBlock.statements
+            if scriptLanguagePairs:
+                self.current.extend(scriptLanguagePairs.pop(0))
+            self.current.append(lookupBlock)
+            for pair in scriptLanguagePairs:
+                self.current.extend(pair)
+                self.current.append(ast.LookupReferenceStatement(lookup=lookupBlock))
         else:
-            name = self._next_available_unnamed_lookup_name()
+            assert languageSystems is None, languageSystems
+            self.current.append(lookupBlock)
+
+        self.current = lookupBlock.statements
+        if flags or markAttachment or markFilteringSet:
+            statement = ast.LookupFlagStatement(
+                value=sum(2 ** _lookupFlags.index(i) for i in flags),
+                markAttachment=markAttachment,
+                markFilteringSet=markFilteringSet,
+            )
+        else:
+            statement = ast.LookupFlagStatement(value=0)
+        self.current.append(statement)
 
         try:
-            with self.BlockStatement("lookup", name):
-                flags = list(flags or []) or ["0"]
-                self.inline_statement("lookupflag", *flags)
-                yield name
+            yield lookupBlock
         finally:
-            self.lookups.append(name)
+            self.current = backup
 
-    def _next_available_unnamed_lookup_name(self) -> str:
-        """
-        Lookup names cannot start with a digit. The wording "unnamed" is better than "anonymous" because the latter sounds like an implied lookup block.
-        """
+    # Substitution statements:
 
-        prefix = "_"
-        existing_numbers = list[int]()
-        for name in self.lookups:
-            if name.startswith(prefix):
-                try:
-                    existing_numbers.append(int(name.removeprefix(prefix)))
-                except ValueError:
-                    continue
-        number = max(existing_numbers, default=0) + 1
-        return prefix + str(number)
+    @overload
+    def sub(self, input: AnyGlyph, output: str) -> ast.SingleSubstStatement: ...
 
-    @contextmanager
-    def Feature(self, tag: str, /, *, name="") -> Iterator[None]:
-        assert len(tag) == 4, tag
-        with self.BlockStatement("feature", tag):
-            if name:
-                with self.BlockStatement("featureNames"):
-                    self.inline_statement("name", f'"{name}"')
-            yield
+    @overload
+    def sub(self, input: AnyGlyphClass, output: AnyGlyphClass) -> ast.SingleSubstStatement: ...
 
+    @overload
+    def sub(self, input: str, output: Iterable[str]) -> ast.MultipleSubstStatement: ...
 
-class InlineStatement(str):
-    @classmethod
-    def from_fields(cls, *fields: str) -> InlineStatement:
-        return cls(" ".join(fields) + ";")
+    @overload
+    def sub(self, input: str, output: AnyGlyphClass) -> ast.AlternateSubstStatement: ...
 
+    @overload
+    def sub(self, input: Iterable[AnyGlyph], output: str) -> ast.LigatureSubstStatement: ...
 
-class BlockStatement(NamedTuple):
-    prefix: str
-    children: list[Statement]
-    suffix: str
+    def sub(
+        self,
+        input: AnyGlyph | Iterable[AnyGlyph],
+        output: AnyGlyph | Iterable[str],
+    ) -> (
+        ast.SingleSubstStatement
+        | ast.MultipleSubstStatement
+        | ast.AlternateSubstStatement
+        | ast.LigatureSubstStatement
+    ):
+        # Type checking instead of list length checking, so the overload signatures are accurate.
 
-    @classmethod
-    def from_struct(cls, keyword: str, /, value="", *, children: list[Statement]) -> BlockStatement:
-        if value:
-            prefix = keyword + " " + value + " {"
-            suffix = "} " + value + ";"
+        _input = (
+            self._normalizedAnyGlyph(input)
+            if isinstance(input, AnyGlyph)
+            else [self._normalizedAnyGlyph(i) for i in input]
+        )
+        _output = (
+            self._normalizedAnyGlyph(output)
+            if isinstance(output, AnyGlyph)
+            else [self._normalizedAnyGlyph(i) for i in output]
+        )
+
+        if isinstance(_input, list):
+            assert not isinstance(_output, list), (_input, _output)
+            statement = ast.LigatureSubstStatement(
+                prefix=[], glyphs=_input, suffix=[], replacement=_output, forceChain=False
+            )
+        elif isinstance(_output, list):
+            statement = ast.MultipleSubstStatement(
+                prefix=[], glyph=_input, suffix=[], replacement=_output
+            )
+        elif isinstance(_output, ast.GlyphName):
+            statement = ast.SingleSubstStatement(
+                glyphs=[_input], replace=[_output], prefix=[], suffix=[], forceChain=False
+            )
         else:
-            prefix = keyword + " {"
-            suffix = "};"
-        return cls(prefix, children, suffix)
+            statement = ast.AlternateSubstStatement(
+                prefix=[], glyph=[_input], suffix=[], replacement=[_output]
+            )
 
-    def lines(self, indentation=" " * 4, wrap_with_empty_lines=False) -> Iterator[str]:
-        if wrap_with_empty_lines:
-            yield ""
+        self.current.append(statement)
+        return statement
 
-        yield self.prefix
-        for statement in self.children:
-            if isinstance(statement, str):
-                yield indentation + statement
+    def contextualSub(
+        self,
+        context: Iterable[AnyGlyph | ContextualInputItem | ast.LookupBlock],
+        output: AnyGlyph | None = None,
+    ) -> ast.SingleSubstStatement | ast.LigatureSubstStatement | ast.ChainContextSubstStatement:
+        prefix = list[_NormalizedAnyGlyph]()
+        input = list[_NormalizedAnyGlyph]()
+        nestedLookups = list[list[ast.LookupBlock]]()
+        suffix = list[_NormalizedAnyGlyph]()
+        for item in context:  # TODO: Validate relative order between different types
+            if isinstance(item, ast.LookupBlock):
+                nestedLookups[-1].append(item)
+            elif isinstance(item, ContextualInputItem):
+                input.append(self._normalizedAnyGlyph(item.marked))
+                nestedLookups.append([])
             else:
-                for line in statement.lines(wrap_with_empty_lines=wrap_with_empty_lines):
-                    if line:
-                        line = indentation + line
-                    yield line
-        yield self.suffix
+                (suffix if input else prefix).append(self._normalizedAnyGlyph(item))
 
-        if wrap_with_empty_lines:
-            yield ""
+        if output:
+            assert not any(len(i) for i in nestedLookups), (nestedLookups, output)
+            _output = self._normalizedAnyGlyph(output)
+            if len(input) == 1:
+                statement = ast.SingleSubstStatement(
+                    glyphs=input,
+                    replace=[_output],
+                    prefix=prefix,
+                    suffix=suffix,
+                    forceChain=True,
+                )
+            else:
+                statement = ast.LigatureSubstStatement(
+                    prefix=prefix,
+                    glyphs=input,
+                    suffix=suffix,
+                    replacement=_output,
+                    forceChain=True,
+                )
+        else:
+            statement = ast.ChainContextSubstStatement(
+                prefix=prefix,
+                glyphs=input,
+                suffix=suffix,
+                lookups=[i or None for i in nestedLookups],
+            )
+
+        self.current.append(statement)
+        return statement
+
+    # Internal:
+
+    def _normalizedAnyGlyph(self, item: AnyGlyph) -> _NormalizedAnyGlyph:
+        if isinstance(item, str):
+            return ast.GlyphName(glyph=self.glyphRenamer(item))
+        elif isinstance(item, ast.GlyphClassDefinition):
+            return ast.GlyphClassName(glyphclass=item)
+        else:
+            return item
 
 
-Statement = InlineStatement | BlockStatement
-
-
-@dataclass
-class Option:
-    stylistic_set: tuple[int, str] | None = None
-    """number (1 to 20) and name"""
-
-    locales: dict[str, set[str]] = field(default_factory=dict)
-    """OpenType script tag to language tags"""
-
-    lookups: set[str] = field(default_factory=set)
-    """lookup names"""
-
-
-@dataclass(frozen=True)
-class OptionManager:
-    options: list[Option]
-
-    def __post_init__(self):
-        numbers = set[int]()  # validate stylistic set numbers
-        for option in self.options:
-            if stylistic_set := option.stylistic_set:
-                number, _ = stylistic_set
-                if number not in range(1, 20 + 1):
-                    raise ValueError(f"stylistic set number is out of the range [1, 20]: {number}")
-                elif number in numbers:
-                    raise ValueError(f"stylistic set number is duplicated: {number}")
-                else:
-                    numbers.add(number)
-
-    def locale_to_lookups(self) -> dict[tuple[str, str], set[str]]:
-        locales = defaultdict[str, set[str]](set)
-        for option in self.options:
-            for script, languages in option.locales.items():
-                locales[script].update(languages)
-
-        locale_to_lookups = dict[tuple[str, str], set[str]]()
-        for script, languages in locales.items():
-            for language in languages:
-                locale_to_lookups[script, language] = {
-                    j
-                    for i in self.options
-                    if language in i.locales.get(script, [])
-                    for j in i.lookups
-                }
-
-        return locale_to_lookups
+_lookupFlags: tuple[LookupFlag, ...] = get_args(LookupFlag)
+_NormalizedAnyGlyph = ast.GlyphName | ast.GlyphClass | ast.GlyphClassName
