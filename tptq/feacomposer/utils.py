@@ -1,27 +1,20 @@
-from collections.abc import Callable, Iterable
+from __future__ import annotations
+
+from collections.abc import Iterable
 from io import StringIO
-from os import PathLike
+from pathlib import Path
 from typing import TextIO
 
+from fontTools.feaLib.ast import FeatureFile
 from fontTools.feaLib.parser import Parser
 
+from . import GlyphRenamer
 
-def renameGlyphsInCode(
-    code: str,
-    renamer: Callable[[str], str],
-    *,
-    newNames: Iterable[str] = (),
-) -> str:
 
+def renameGlyphsInCode(code: str, renamer: GlyphRenamer) -> FeatureFile:
     with StringIO(code) as f:
-        parser = GlyphRenamingParser(f, renamer, newNames=newNames)
-
-    lines = list[str]()
-    for line in parser.parse().asFea().splitlines():
-        if line := line.rstrip():
-            lines.append(line)
-
-    return "".join(i + "\n" for i in lines)
+        parser = GlyphRenamingParser(f, renamer)
+    return parser.parse()
 
 
 class GlyphRenamingParser(Parser):
@@ -29,19 +22,20 @@ class GlyphRenamingParser(Parser):
     All glyph names are renamed with the `renamer` function during parsing, before each (new, post-renaming) name is validated against the optional `newNames` iterable.
     """
 
+    renamer: GlyphRenamer
+
     def __init__(
         self,
-        featurefile: TextIO | PathLike[str] | str,
-        renamer: Callable[[str], str],
+        file: TextIO,
+        renamer: GlyphRenamer,
         *,
         newNames: Iterable[str] = (),
-        followIncludes=True,
-        includeDir: PathLike[str] | str | None = None,
-    ):
+        followIncludes: bool = True,
+        includeDir: Path | None = None,
+    ) -> None:
         self.renamer = renamer
-        self.oldNameToNew = dict[str, str]()
         super().__init__(
-            featurefile,
+            featurefile=file,
             glyphNames=newNames,
             followIncludes=followIncludes,
             includeDir=includeDir,
@@ -49,7 +43,4 @@ class GlyphRenamingParser(Parser):
 
     def expect_glyph_(self) -> str:
         old = super().expect_glyph_()
-        new = self.oldNameToNew.get(old)
-        if not new:
-            self.oldNameToNew[old] = new = self.renamer(old)
-        return new
+        return self.renamer(old)

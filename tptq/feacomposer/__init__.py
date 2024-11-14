@@ -1,21 +1,17 @@
 from __future__ import annotations
 
-from collections.abc import Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Literal, Protocol, get_args, overload
+from typing import Literal, get_args, overload
 
 from fontTools.feaLib import ast
 
 LanguageSystemDict = dict[str | Literal["DFLT"], set[str | Literal["dflt"]]]
-LookupFlag = Literal["RightToLeft", "IgnoreBaseGlyphs", "IgnoreLigatures", "IgnoreMarks"]
-
+BooleanLookupFlag = Literal["RightToLeft", "IgnoreBaseGlyphs", "IgnoreLigatures", "IgnoreMarks"]
 AnyGlyphClass = ast.GlyphClass | ast.GlyphClassDefinition
 AnyGlyph = str | AnyGlyphClass
-
-
-class GlyphRenamer(Protocol):
-    def __call__(self, name: str) -> str: ...
+GlyphRenamer = Callable[[str], str]
 
 
 @dataclass
@@ -91,7 +87,7 @@ class FeaComposer:
         *,
         languageSystems: LanguageSystemDict | None = None,
         feature: str = "",
-        flags: Iterable[LookupFlag] = (),
+        flags: Iterable[BooleanLookupFlag] = (),
         markAttachment: AnyGlyphClass | None = None,
         markFilteringSet: AnyGlyphClass | None = None,
     ) -> Iterator[ast.LookupBlock]:
@@ -140,7 +136,7 @@ class FeaComposer:
         self.current = lookupBlock.statements
         if flags or markAttachment or markFilteringSet:
             statement = ast.LookupFlagStatement(
-                value=sum(2 ** _lookupFlags.index(i) for i in flags),
+                value=sum(2 ** _booleanLookupFlags.index(i) for i in flags),
                 markAttachment=markAttachment,
                 markFilteringSet=markFilteringSet,
             )
@@ -273,5 +269,5 @@ class FeaComposer:
             return item
 
 
-_lookupFlags: tuple[LookupFlag, ...] = get_args(LookupFlag)
+_booleanLookupFlags: tuple[BooleanLookupFlag, ...] = get_args(BooleanLookupFlag)
 _NormalizedAnyGlyph = ast.GlyphName | ast.GlyphClass | ast.GlyphClassName
