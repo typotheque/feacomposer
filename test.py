@@ -8,7 +8,7 @@ def testFeaComposer() -> FeaComposer:
             "deva": {"dflt", "MAR "},
             "dev2": {"dflt", "MAR "},
         },
-        glyphRenamer=lambda name: "Deva:" + name,
+        glyphNameProcessor=lambda name: "Deva:" + name,
     )
 
     someClass = c.namedGlyphClass("foo", ["a"])

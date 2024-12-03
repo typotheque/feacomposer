@@ -7,11 +7,13 @@ from typing import Literal, get_args, overload
 
 from fontTools.feaLib import ast
 
-LanguageSystemDict = dict[str | Literal["DFLT"], set[str | Literal["dflt"]]]
-BooleanLookupFlag = Literal["RightToLeft", "IgnoreBaseGlyphs", "IgnoreLigatures", "IgnoreMarks"]
 AnyGlyphClass = ast.GlyphClass | ast.GlyphClassDefinition
 AnyGlyph = str | AnyGlyphClass
-GlyphRenamer = Callable[[str], str]
+
+StringProcessor = Callable[[str], str]
+
+LanguageSystemDict = dict[str | Literal["DFLT"], set[str | Literal["dflt"]]]
+BooleanLookupFlag = Literal["RightToLeft", "IgnoreBaseGlyphs", "IgnoreLigatures", "IgnoreMarks"]
 
 
 @dataclass
@@ -22,7 +24,8 @@ class ContextualInputItem:
 @dataclass
 class FeaComposer:
     languageSystems: LanguageSystemDict
-    glyphRenamer: GlyphRenamer
+    glyphNameProcessor: StringProcessor
+    """Every incoming glyph name is processed with this function. Often useful for renaming glyphs. For example, supply `lambda name: "Deva:" + name` to prefix all glyph names with the Devanagari namespace."""
 
     root: list[ast.Element]
     current: list[ast.Element]
@@ -31,10 +34,10 @@ class FeaComposer:
     def __init__(
         self,
         languageSystems: LanguageSystemDict | None = None,
-        glyphRenamer: GlyphRenamer = lambda name: name,
+        glyphNameProcessor: StringProcessor = lambda name: name,
     ) -> None:
         self.languageSystems = {"DFLT": {"dflt"}} if languageSystems is None else languageSystems
-        self.glyphRenamer = glyphRenamer
+        self.glyphNameProcessor = glyphNameProcessor
 
         self.root = list[ast.Element]()
         self.current = self.root
@@ -262,7 +265,7 @@ class FeaComposer:
 
     def _normalizedAnyGlyph(self, item: AnyGlyph) -> _NormalizedAnyGlyph:
         if isinstance(item, str):
-            return ast.GlyphName(glyph=self.glyphRenamer(item))
+            return ast.GlyphName(glyph=self.glyphNameProcessor(item))
         elif isinstance(item, ast.GlyphClassDefinition):
             return ast.GlyphClassName(glyphclass=item)
         else:

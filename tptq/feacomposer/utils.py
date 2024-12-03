@@ -8,32 +8,32 @@ from typing import TextIO
 from fontTools.feaLib.ast import FeatureFile
 from fontTools.feaLib.parser import Parser
 
-from . import GlyphRenamer
+from . import StringProcessor
 
 
-def renameGlyphsInCode(code: str, renamer: GlyphRenamer) -> FeatureFile:
+def processGlyphNamesInCode(code: str, processor: StringProcessor) -> FeatureFile:
     with StringIO(code) as f:
-        parser = GlyphRenamingParser(f, renamer)
+        parser = GlyphNameProcessingParser(f, processor=processor)
     return parser.parse()
 
 
-class GlyphRenamingParser(Parser):
+class GlyphNameProcessingParser(Parser):
     """
-    All glyph names are renamed with the `renamer` function during parsing, before each (new, post-renaming) name is validated against the optional `newNames` iterable.
+    All glyph names go through the `processor` function during parsing, before the returned new name is validated against the optional set of `newNames`.
     """
 
-    renamer: GlyphRenamer
+    processor: StringProcessor
 
     def __init__(
         self,
         file: TextIO,
-        renamer: GlyphRenamer,
+        processor: StringProcessor,
         *,
         newNames: Iterable[str] = (),
         followIncludes: bool = True,
         includeDir: Path | None = None,
     ) -> None:
-        self.renamer = renamer
+        self.processor = processor
         super().__init__(
             featurefile=file,
             glyphNames=newNames,
@@ -43,4 +43,4 @@ class GlyphRenamingParser(Parser):
 
     def expect_glyph_(self) -> str:
         old = super().expect_glyph_()
-        return self.renamer(old)
+        return self.processor(old)
