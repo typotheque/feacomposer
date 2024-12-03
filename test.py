@@ -1,7 +1,7 @@
 from tptq.feacomposer import FeaComposer
 
 
-def testFeaComposer():
+def testFeaComposer() -> FeaComposer:
     c = FeaComposer(
         languageSystems={
             "DFLT": {"dflt"},
@@ -31,4 +31,8 @@ def testFeaComposer():
         c.contextualSub(["a", c.input("b"), "c"], "d")
         c.contextualSub(["x", c.input("y"), lookupFoo, c.input("z"), lookupBar])
 
-    print(c.code())
+    return c
+
+
+if __name__ == "__main__":
+    print(testFeaComposer().code())
