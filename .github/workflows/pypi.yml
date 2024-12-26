@@ -1,5 +1,8 @@
 # https://docs.github.com/en/actions/use-cases-and-examples/building-and-testing/building-and-testing-python#publishing-to-pypi
 
+# Test locally with https://github.com/nektos/act:
+#   act --workflows .github/workflows/pypi.yml --platform ubuntu-latest=catthehacker/ubuntu:full-latest
+
 name: Publish to PyPI
 
 on:
@@ -15,7 +18,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: echo $HOME/.local/bin >> $GITHUB_PATH
       - run: pipx install poetry
       - uses: actions/setup-python@v5
         with:
