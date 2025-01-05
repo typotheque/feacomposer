@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from io import StringIO
 from pathlib import Path
-from typing import TextIO
+from typing import IO
 
 from fontTools.feaLib.ast import FeatureFile
 from fontTools.feaLib.parser import Parser
@@ -26,7 +26,7 @@ class GlyphNameProcessingParser(Parser):
 
     def __init__(
         self,
-        file: TextIO,
+        file: IO[str],
         processor: StringProcessor,
         *,
         newNames: Iterable[str] = (),
