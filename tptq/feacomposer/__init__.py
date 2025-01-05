@@ -43,14 +43,14 @@ class FeaComposer:
         self.current = self.root
         self.nextLookupNumber = 1
 
-    def code(self) -> str:
+    def asFeatureFile(self) -> ast.FeatureFile:
         featureFile = ast.FeatureFile()
         featureFile.statements = [
             ast.LanguageSystemStatement(script=k, language=i)
             for k, v in sorted(self.languageSystems.items())
             for i in sorted(v)
         ] + self.root
-        return featureFile.asFea()
+        return featureFile
 
     # Expressions:
 

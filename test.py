@@ -35,4 +35,4 @@ def testFeaComposer() -> FeaComposer:
 
 
 if __name__ == "__main__":
-    print(testFeaComposer().code())
+    print(testFeaComposer().asFeatureFile())
