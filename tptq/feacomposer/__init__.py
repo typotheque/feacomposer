@@ -174,21 +174,13 @@ class FeaComposer:
     def sub(self, item: str, /, *, by: Iterable[str]) -> ast.MultipleSubstStatement: ...
 
     @overload
-    def sub(self, item: str, /, *, by: AnyGlyphClass) -> ast.AlternateSubstStatement: ...
-
-    @overload
     def sub(self, *items: AnyGlyph, by: str) -> ast.LigatureSubstStatement: ...
 
     def sub(
         self,
         *items: AnyGlyph,
         by: AnyGlyph | Iterable[str],
-    ) -> (
-        ast.SingleSubstStatement
-        | ast.MultipleSubstStatement
-        | ast.AlternateSubstStatement
-        | ast.LigatureSubstStatement
-    ):
+    ) -> ast.SingleSubstStatement | ast.MultipleSubstStatement | ast.LigatureSubstStatement:
         input = [self._normalizedAnyGlyph(i) for i in items]
         output = (
             self._normalizedAnyGlyph(by)
@@ -201,10 +193,6 @@ class FeaComposer:
             if isinstance(output, list):
                 assert isinstance(input, ast.GlyphName)
                 statement = ast.MultipleSubstStatement(
-                    prefix=[], glyph=input, suffix=[], replacement=output
-                )
-            elif isinstance(input, ast.GlyphName) and isinstance(output, _NormalizedAnyGlyphClass):
-                statement = ast.AlternateSubstStatement(
                     prefix=[], glyph=input, suffix=[], replacement=output
                 )
             else:
