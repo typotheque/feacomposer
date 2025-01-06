@@ -1,7 +1,7 @@
 from tptq.feacomposer import FeaComposer
 
 
-def testFeaComposer() -> FeaComposer:
+def test():
     c = FeaComposer(
         languageSystems={
             "DFLT": {"dflt"},
@@ -26,13 +26,13 @@ def testFeaComposer() -> FeaComposer:
     with c.Lookup(
         languageSystems={"dev2": {"dflt", "MAR "}},
         feature="xxxx",
-        markAttachment=c.glyphClass(["virama"]),
+        flags={"MarkAttachmentType": c.glyphClass(["virama"])},
     ):
         c.contextualSub(["a", c.input("b"), "c"], "d")
         c.contextualSub(["x", c.input("y"), lookupFoo, c.input("z"), lookupBar])
 
-    return c
+    print(c.asFeatureFile())
 
 
 if __name__ == "__main__":
-    print(testFeaComposer().asFeatureFile())
+    test()
