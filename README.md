@@ -35,7 +35,7 @@ from tptq.feacomposer import FeaComposer
 c = FeaComposer()
 
 with c.Lookup(feature="liga"):
-    c.sub(["f", "i"], "fi")
+    c.sub("f", "i", by="fi")
 
 print(c.asFeatureFile())
 ```

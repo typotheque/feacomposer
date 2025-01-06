@@ -120,10 +120,7 @@ class FeaComposer:
             if languageSystems is not None:
                 assert languageSystems, languageSystems
                 for script, languages in sorted(languageSystems.items()):
-                    assert languages <= self.languageSystems[script], (
-                        languageSystems,
-                        self.languageSystems,
-                    )
+                    assert languages <= self.languageSystems[script], (script, languages)
                     scriptLanguagePairs.extend(
                         (
                             ast.ScriptStatement(script=script),
@@ -169,59 +166,53 @@ class FeaComposer:
     # Substitution statements:
 
     @overload
-    def sub(self, input: AnyGlyph, output: str) -> ast.SingleSubstStatement: ...
+    def sub(self, input: AnyGlyph, /, *, by: str) -> ast.SingleSubstStatement: ...
 
     @overload
-    def sub(self, input: AnyGlyphClass, output: AnyGlyphClass) -> ast.SingleSubstStatement: ...
+    def sub(self, input: AnyGlyphClass, /, *, by: AnyGlyphClass) -> ast.SingleSubstStatement: ...
 
     @overload
-    def sub(self, input: str, output: Iterable[str]) -> ast.MultipleSubstStatement: ...
+    def sub(self, input: str, /, *, by: Iterable[str]) -> ast.MultipleSubstStatement: ...
 
     @overload
-    def sub(self, input: str, output: AnyGlyphClass) -> ast.AlternateSubstStatement: ...
+    def sub(self, input: str, /, *, by: AnyGlyphClass) -> ast.AlternateSubstStatement: ...
 
     @overload
-    def sub(self, input: Iterable[AnyGlyph], output: str) -> ast.LigatureSubstStatement: ...
+    def sub(self, *inputs: AnyGlyph, by: str) -> ast.LigatureSubstStatement: ...
 
     def sub(
         self,
-        input: AnyGlyph | Iterable[AnyGlyph],
-        output: AnyGlyph | Iterable[str],
+        *inputs: AnyGlyph,
+        by: AnyGlyph | Iterable[str],
     ) -> (
         ast.SingleSubstStatement
         | ast.MultipleSubstStatement
         | ast.AlternateSubstStatement
         | ast.LigatureSubstStatement
     ):
-        # Type checking instead of list length checking, so the overload signatures are accurate.
-
-        _input = (
-            self._normalizedAnyGlyph(input)
-            if isinstance(input, AnyGlyph)
-            else [self._normalizedAnyGlyph(i) for i in input]
-        )
-        _output = (
-            self._normalizedAnyGlyph(output)
-            if isinstance(output, AnyGlyph)
-            else [self._normalizedAnyGlyph(i) for i in output]
+        input = [self._normalizedAnyGlyph(i) for i in inputs]
+        output = (
+            self._normalizedAnyGlyph(by)
+            if isinstance(by, AnyGlyph)
+            else [self._normalizedAnyGlyph(i) for i in by]
         )
 
-        if isinstance(_input, list):
-            assert not isinstance(_output, list), (_input, _output)
-            statement = ast.LigatureSubstStatement(
-                prefix=[], glyphs=_input, suffix=[], replacement=_output, forceChain=False
-            )
-        elif isinstance(_output, list):
-            statement = ast.MultipleSubstStatement(
-                prefix=[], glyph=_input, suffix=[], replacement=_output
-            )
-        elif isinstance(_output, ast.GlyphName):
-            statement = ast.SingleSubstStatement(
-                glyphs=[_input], replace=[_output], prefix=[], suffix=[], forceChain=False
-            )
+        if len(input) == 1:
+            if isinstance(output, list):
+                statement = ast.MultipleSubstStatement(
+                    prefix=[], glyph=input[0], suffix=[], replacement=output
+                )
+            elif isinstance(output, ast.GlyphName):
+                statement = ast.SingleSubstStatement(
+                    glyphs=input, replace=[output], prefix=[], suffix=[], forceChain=False
+                )
+            else:
+                statement = ast.AlternateSubstStatement(
+                    prefix=[], glyph=input, suffix=[], replacement=[output]
+                )
         else:
-            statement = ast.AlternateSubstStatement(
-                prefix=[], glyph=[_input], suffix=[], replacement=[_output]
+            statement = ast.LigatureSubstStatement(
+                prefix=[], glyphs=input, suffix=[], replacement=output, forceChain=False
             )
 
         self.current.append(statement)
@@ -229,14 +220,14 @@ class FeaComposer:
 
     def contextualSub(
         self,
-        context: Iterable[AnyGlyph | ContextualInputItem | ast.LookupBlock],
-        output: AnyGlyph | None = None,
+        *items: AnyGlyph | ContextualInputItem | ast.LookupBlock,
+        by: AnyGlyph | None = None,
     ) -> ast.SingleSubstStatement | ast.LigatureSubstStatement | ast.ChainContextSubstStatement:
         prefix = list[_NormalizedAnyGlyph]()
         input = list[_NormalizedAnyGlyph]()
         nestedLookups = list[list[ast.LookupBlock]]()
         suffix = list[_NormalizedAnyGlyph]()
-        for item in context:  # TODO: Validate relative order between different types
+        for item in items:  # TODO: Validate relative order between different types
             if isinstance(item, ast.LookupBlock):
                 nestedLookups[-1].append(item)
             elif isinstance(item, ContextualInputItem):
@@ -245,13 +236,13 @@ class FeaComposer:
             else:
                 (suffix if input else prefix).append(self._normalizedAnyGlyph(item))
 
-        if output:
-            assert not any(len(i) for i in nestedLookups), (nestedLookups, output)
-            _output = self._normalizedAnyGlyph(output)
+        if by:
+            assert not any(nestedLookups), nestedLookups
+            output = self._normalizedAnyGlyph(by)
             if len(input) == 1:
                 statement = ast.SingleSubstStatement(
                     glyphs=input,
-                    replace=[_output],
+                    replace=[output],
                     prefix=prefix,
                     suffix=suffix,
                     forceChain=True,
@@ -261,7 +252,7 @@ class FeaComposer:
                     prefix=prefix,
                     glyphs=input,
                     suffix=suffix,
-                    replacement=_output,
+                    replacement=output,
                     forceChain=True,
                 )
         else:
@@ -276,6 +267,15 @@ class FeaComposer:
         return statement
 
     # Internal:
+
+    @overload
+    def _normalizedAnyGlyph(self, item: str) -> ast.GlyphName: ...
+
+    @overload
+    def _normalizedAnyGlyph(self, item: ast.GlyphClassDefinition) -> ast.GlyphClassName: ...
+
+    @overload
+    def _normalizedAnyGlyph(self, item: ast.GlyphClass) -> ast.GlyphClass: ...
 
     def _normalizedAnyGlyph(self, item: AnyGlyph) -> _NormalizedAnyGlyph:
         if isinstance(item, str):

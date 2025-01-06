@@ -14,8 +14,8 @@ def test():
     someClass = c.namedGlyphClass("foo", ["a"])
 
     with c.Lookup(feature="rphf"):
-        c.sub(["ra", "virama"], "repha")
-        c.sub(["a", c.glyphClass(["a"]), someClass], "b")
+        c.sub("ra", "virama", by="repha")
+        c.sub("a", c.glyphClass(["a"]), someClass, by="b")
 
     with c.Lookup("foo") as lookupFoo:
         pass
@@ -28,8 +28,8 @@ def test():
         feature="xxxx",
         flags={"MarkAttachmentType": c.glyphClass(["virama"])},
     ):
-        c.contextualSub(["a", c.input("b"), "c"], "d")
-        c.contextualSub(["x", c.input("y"), lookupFoo, c.input("z"), lookupBar])
+        c.contextualSub("a", c.input("b"), "c", by="d")
+        c.contextualSub("x", c.input("y"), lookupFoo, c.input("z"), lookupBar)
 
     print(c.asFeatureFile())
 
