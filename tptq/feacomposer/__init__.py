@@ -10,6 +10,8 @@ StringProcessor = Callable[[str], str]
 
 AnyGlyphClass = ast.GlyphClass | ast.GlyphClassDefinition
 AnyGlyph = str | AnyGlyphClass
+_NormalizedAnyGlyphClass = ast.GlyphClass | ast.GlyphClassName
+_NormalizedAnyGlyph = ast.GlyphName | _NormalizedAnyGlyphClass
 
 
 class LookupFlagDict(TypedDict, total=False):
@@ -24,9 +26,6 @@ class LookupFlagDict(TypedDict, total=False):
 @dataclass
 class ContextualInputItem:
     marked: AnyGlyph
-
-
-_NormalizedAnyGlyph = ast.GlyphName | ast.GlyphClass | ast.GlyphClassName
 
 
 @dataclass
@@ -166,23 +165,23 @@ class FeaComposer:
     # Substitution statements:
 
     @overload
-    def sub(self, input: AnyGlyph, /, *, by: str) -> ast.SingleSubstStatement: ...
+    def sub(self, item: AnyGlyph, /, *, by: str) -> ast.SingleSubstStatement: ...
 
     @overload
-    def sub(self, input: AnyGlyphClass, /, *, by: AnyGlyphClass) -> ast.SingleSubstStatement: ...
+    def sub(self, item: AnyGlyphClass, /, *, by: AnyGlyphClass) -> ast.SingleSubstStatement: ...
 
     @overload
-    def sub(self, input: str, /, *, by: Iterable[str]) -> ast.MultipleSubstStatement: ...
+    def sub(self, item: str, /, *, by: Iterable[str]) -> ast.MultipleSubstStatement: ...
 
     @overload
-    def sub(self, input: str, /, *, by: AnyGlyphClass) -> ast.AlternateSubstStatement: ...
+    def sub(self, item: str, /, *, by: AnyGlyphClass) -> ast.AlternateSubstStatement: ...
 
     @overload
-    def sub(self, *inputs: AnyGlyph, by: str) -> ast.LigatureSubstStatement: ...
+    def sub(self, *items: AnyGlyph, by: str) -> ast.LigatureSubstStatement: ...
 
     def sub(
         self,
-        *inputs: AnyGlyph,
+        *items: AnyGlyph,
         by: AnyGlyph | Iterable[str],
     ) -> (
         ast.SingleSubstStatement
@@ -190,7 +189,7 @@ class FeaComposer:
         | ast.AlternateSubstStatement
         | ast.LigatureSubstStatement
     ):
-        input = [self._normalizedAnyGlyph(i) for i in inputs]
+        input = [self._normalizedAnyGlyph(i) for i in items]
         output = (
             self._normalizedAnyGlyph(by)
             if isinstance(by, AnyGlyph)
@@ -198,19 +197,22 @@ class FeaComposer:
         )
 
         if len(input) == 1:
+            [input] = input
             if isinstance(output, list):
+                assert isinstance(input, ast.GlyphName)
                 statement = ast.MultipleSubstStatement(
-                    prefix=[], glyph=input[0], suffix=[], replacement=output
+                    prefix=[], glyph=input, suffix=[], replacement=output
                 )
-            elif isinstance(output, ast.GlyphName):
-                statement = ast.SingleSubstStatement(
-                    glyphs=input, replace=[output], prefix=[], suffix=[], forceChain=False
+            elif isinstance(input, ast.GlyphName) and isinstance(output, _NormalizedAnyGlyphClass):
+                statement = ast.AlternateSubstStatement(
+                    prefix=[], glyph=input, suffix=[], replacement=output
                 )
             else:
-                statement = ast.AlternateSubstStatement(
-                    prefix=[], glyph=input, suffix=[], replacement=[output]
+                statement = ast.SingleSubstStatement(
+                    glyphs=[input], replace=[output], prefix=[], suffix=[], forceChain=False
                 )
         else:
+            assert isinstance(output, ast.GlyphName)
             statement = ast.LigatureSubstStatement(
                 prefix=[], glyphs=input, suffix=[], replacement=output, forceChain=False
             )
@@ -225,19 +227,19 @@ class FeaComposer:
     ) -> ast.SingleSubstStatement | ast.LigatureSubstStatement | ast.ChainContextSubstStatement:
         prefix = list[_NormalizedAnyGlyph]()
         input = list[_NormalizedAnyGlyph]()
-        nestedLookups = list[list[ast.LookupBlock]]()
+        lookupLists = list[list[ast.LookupBlock]]()
         suffix = list[_NormalizedAnyGlyph]()
         for item in items:  # TODO: Validate relative order between different types
             if isinstance(item, ast.LookupBlock):
-                nestedLookups[-1].append(item)
+                lookupLists[-1].append(item)
             elif isinstance(item, ContextualInputItem):
                 input.append(self._normalizedAnyGlyph(item.marked))
-                nestedLookups.append([])
+                lookupLists.append([])
             else:
                 (suffix if input else prefix).append(self._normalizedAnyGlyph(item))
 
         if by:
-            assert not any(nestedLookups), nestedLookups
+            assert not any(lookupLists), lookupLists
             output = self._normalizedAnyGlyph(by)
             if len(input) == 1:
                 statement = ast.SingleSubstStatement(
@@ -260,7 +262,7 @@ class FeaComposer:
                 prefix=prefix,
                 glyphs=input,
                 suffix=suffix,
-                lookups=[i or None for i in nestedLookups],
+                lookups=[i or None for i in lookupLists],
             )
 
         self.current.append(statement)

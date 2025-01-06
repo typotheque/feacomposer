@@ -16,6 +16,7 @@ def test():
     with c.Lookup(feature="rphf"):
         c.sub("ra", "virama", by="repha")
         c.sub("a", c.glyphClass(["a"]), someClass, by="b")
+        c.sub(c.glyphClass(["a"]), by=c.glyphClass(["a"]))
 
     with c.Lookup("foo") as lookupFoo:
         pass
