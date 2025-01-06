@@ -37,7 +37,7 @@ c = FeaComposer()
 with c.Lookup(feature="liga"):
     c.sub(["f", "i"], "fi")
 
-print(c.code())
+print(c.asFeatureFile())
 ```
 
 The printed FEA code:
