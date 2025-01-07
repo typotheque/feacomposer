@@ -1,8 +1,8 @@
 {
   "recommendations": [
+    "bodil.prettier-toml",
     "esbenp.prettier-vscode",
     "ms-python.black-formatter",
-    "ms-python.python",
-    "tamasfe.even-better-toml"
+    "ms-python.python"
   ]
 }

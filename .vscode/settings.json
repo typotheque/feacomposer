@@ -17,6 +17,6 @@
   "black-formatter.args": ["--line-length", "100"],
   "isort.args": ["--profile", "black"],
   "[toml]": {
-    "editor.defaultFormatter": "tamasfe.even-better-toml"
+    "editor.defaultFormatter": "bodil.prettier-toml"
   }
 }
