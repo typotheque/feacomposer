@@ -11,6 +11,7 @@ urls.releasenotes = "https://github.com/typotheque/feacomposer/releases"
 dependencies = ["fonttools>=4.43.0,<5.0.0"]
 
 [tool.poetry]
+requires-poetry = ">=2.0"
 packages = [{ include = "tptq" }]
 group.dev.dependencies = { pytest = ">=8.3.3,<9.0.0" }
 
