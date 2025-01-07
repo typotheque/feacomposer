@@ -35,7 +35,7 @@ from tptq.feacomposer import FeaComposer
 c = FeaComposer()
 
 with c.Lookup(feature="liga"):
-    c.sub("f", "i", by="fi")
+    c.sub("f", "i", by="f_i")
 
 print(c.asFeatureFile())
 ```
@@ -47,10 +47,10 @@ languagesystem DFLT dflt;
 feature liga {
     lookup _1 {
         lookupflag 0;
-        sub f i by fi;
+        sub f i by f_i;
     } _1;
 
 } liga;
 ```
 
-See [test.py](https://github.com/typotheque/feacomposer/blob/main/test.py) for more advanced usage.
+See [test.py](https://github.com/typotheque/feacomposer/blob/main/test.py) for more examples.

@@ -2,34 +2,51 @@ from tptq.feacomposer import FeaComposer
 
 
 def test():
+    def insertNamespace(name: str) -> str:
+        head, sep, tail = name.partition(".")
+        return head + "-deva" + sep + tail
+
     c = FeaComposer(
         languageSystems={
             "DFLT": {"dflt"},
-            "deva": {"dflt", "MAR "},
-            "dev2": {"dflt", "MAR "},
+            "dev2": {"dflt", "NEP "},
         },
-        glyphNameProcessor=lambda name: "Deva:" + name,
+        glyphNameProcessor=insertNamespace,
     )
 
-    someClass = c.namedGlyphClass("foo", ["a"])
+    c.comment("Hello and, again, welcome to the Aperture Science computer-aided enrichment center.")
+
+    with c.Lookup(
+        languageSystems={"dev2": {"NEP "}},
+        feature="locl",
+    ):
+        mapping = {i: i + ".north" for i in ["one", "five", "eight"]}
+        c.sub(
+            c.glyphClass(mapping.keys()),
+            by=c.glyphClass(mapping.values()),
+        )
 
     with c.Lookup(feature="rphf"):
         c.sub("ra", "virama", by="repha")
-        c.sub("a", c.glyphClass(["a"]), someClass, by="b")
-
-    with c.Lookup("foo") as lookupFoo:
-        pass
-
-    with c.Lookup("bar") as lookupBar:
-        pass
 
     with c.Lookup(
-        languageSystems={"dev2": {"dflt", "MAR "}},
-        feature="xxxx",
-        flags={"MarkAttachmentType": c.glyphClass(["virama"])},
+        feature="rkrf",
+        flags={"UseMarkFilteringSet": c.glyphClass(["virama"])},
     ):
-        c.contextualSub("a", c.input("b"), "c", by="d")
-        c.contextualSub("x", c.input("y"), lookupFoo, c.input("z"), lookupBar)
+        c.sub("ka", "virama", "ra", by="kRa")
+
+    thaLike = c.namedGlyphClass("thaLike", ["tha", "dha", "sha"])
+
+    with c.Lookup() as compact:
+        for original in ["kRa", "usign"]:
+            c.sub(original, by=original + ".compact")
+
+    with c.Lookup(feature="pres"):
+        c.contextualSub(thaLike, c.input("repha"), by="repha.tha")
+        c.contextualSub(
+            c.input("kRa", compact),
+            c.input("usign", compact),
+        )
 
     print(c.asFeatureFile())
 
