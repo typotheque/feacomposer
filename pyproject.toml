@@ -1,20 +1,19 @@
-[tool.poetry]
+[project]
 name = "tptq.feacomposer"
 version = "1.4.0"
 description = "A feaLib wrapper for composing FEA code in Python"
-license = "MIT"
-authors = ["Liang Hai <liang@typotheque.com>"]
+license = { text = "MIT" }
 readme = "README.md"
-repository = "https://github.com/typotheque/feacomposer"
+requires-python = ">=3.10"
+authors = [{ name = "Liang Hai", email = "liang@typotheque.com" }]
+urls.repository = "https://github.com/typotheque/feacomposer"
+urls.releasenotes = "https://github.com/typotheque/feacomposer/releases"
+dependencies = ["fonttools>=4.43.0,<5.0.0"]
+
+[tool.poetry]
 packages = [{ include = "tptq" }]
-
-[tool.poetry.dependencies]
-python = "^3.10"
-fonttools = "^4.43.0"
-
-[tool.poetry.group.dev.dependencies]
-pytest = "^8.3.3"
+group.dev.dependencies = { pytest = ">=8.3.3,<9.0.0" }
 
 [build-system]
-requires = ["poetry-core"]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
