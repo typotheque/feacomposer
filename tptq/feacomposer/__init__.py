@@ -141,6 +141,10 @@ class FeaComposer:
 
         self.current = lookupBlock.statements
         if flags:
+            if markAttachment := flags.get("MarkAttachmentType"):
+                markAttachment = self._normalizedAnyGlyph(markAttachment)
+            if markFilteringSet := flags.get("UseMarkFilteringSet"):
+                markFilteringSet = self._normalizedAnyGlyph(markFilteringSet)
             statement = ast.LookupFlagStatement(
                 value=sum(
                     {
@@ -151,8 +155,8 @@ class FeaComposer:
                     }.get(i, 0)
                     for i in flags
                 ),
-                markAttachment=flags.get("MarkAttachmentType"),
-                markFilteringSet=flags.get("UseMarkFilteringSet"),
+                markAttachment=markAttachment,
+                markFilteringSet=markFilteringSet,
             )
         else:
             statement = ast.LookupFlagStatement(value=0)
