@@ -80,11 +80,7 @@ class FeaComposer:
 
     # Misc statements:
 
-    def namedGlyphClass(
-        self,
-        name: str,
-        items: Iterable[str | ast.GlyphClassDefinition],
-    ) -> ast.GlyphClassDefinition:
+    def namedGlyphClass(self, name: str, items: Iterable[AnyGlyph]) -> ast.GlyphClassDefinition:
         definition = ast.GlyphClassDefinition(name, self.glyphClass(items))
         self.current.append(definition)
         return definition
