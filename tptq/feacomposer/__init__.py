@@ -25,7 +25,8 @@ class LookupFlagDict(TypedDict, total=False):
 
 @dataclass
 class ContextualInputItem:
-    marked: AnyGlyph
+    marked: _NormalizedAnyGlyph
+    lookups: list[ast.LookupBlock]
 
 
 @dataclass
@@ -64,8 +65,8 @@ class FeaComposer:
     def glyphClass(self, items: Iterable[AnyGlyph]) -> ast.GlyphClass:
         return ast.GlyphClass(glyphs=[self._normalizedAnyGlyph(i) for i in items])
 
-    def input(self, item: AnyGlyph) -> ContextualInputItem:
-        return ContextualInputItem(item)
+    def input(self, item: AnyGlyph, *lookups: ast.LookupBlock) -> ContextualInputItem:
+        return ContextualInputItem(self._normalizedAnyGlyph(item), [*lookups])
 
     # Comment or raw text:
 
@@ -181,28 +182,27 @@ class FeaComposer:
         *items: AnyGlyph,
         by: AnyGlyph | Iterable[str],
     ) -> ast.SingleSubstStatement | ast.MultipleSubstStatement | ast.LigatureSubstStatement:
-        input = [self._normalizedAnyGlyph(i) for i in items]
-        output = (
+        inputs = [self._normalizedAnyGlyph(i) for i in items]
+        outputs = (
             self._normalizedAnyGlyph(by)
             if isinstance(by, AnyGlyph)
             else [self._normalizedAnyGlyph(i) for i in by]
         )
 
-        if len(input) == 1:
-            [input] = input
-            if isinstance(output, list):
-                assert isinstance(input, ast.GlyphName)
+        if len(inputs) == 1:
+            if isinstance(outputs, list):
+                assert isinstance(inputs[0], ast.GlyphName)
                 statement = ast.MultipleSubstStatement(
-                    prefix=[], glyph=input, suffix=[], replacement=output
+                    prefix=[], glyph=inputs[0], suffix=[], replacement=outputs
                 )
             else:
                 statement = ast.SingleSubstStatement(
-                    glyphs=[input], replace=[output], prefix=[], suffix=[], forceChain=False
+                    glyphs=inputs, replace=[outputs], prefix=[], suffix=[], forceChain=False
                 )
         else:
-            assert isinstance(output, ast.GlyphName)
+            assert isinstance(outputs, ast.GlyphName)
             statement = ast.LigatureSubstStatement(
-                prefix=[], glyphs=input, suffix=[], replacement=output, forceChain=False
+                prefix=[], glyphs=inputs, suffix=[], replacement=outputs, forceChain=False
             )
 
         self.current.append(statement)
@@ -210,46 +210,44 @@ class FeaComposer:
 
     def contextualSub(
         self,
-        *items: AnyGlyph | ContextualInputItem | ast.LookupBlock,
+        *items: ContextualInputItem | AnyGlyph,
         by: AnyGlyph | None = None,
     ) -> ast.SingleSubstStatement | ast.LigatureSubstStatement | ast.ChainContextSubstStatement:
-        prefix = list[_NormalizedAnyGlyph]()
-        input = list[_NormalizedAnyGlyph]()
+        prefixes = list[_NormalizedAnyGlyph]()
+        inputs = list[_NormalizedAnyGlyph]()
         lookupLists = list[list[ast.LookupBlock]]()
-        suffix = list[_NormalizedAnyGlyph]()
-        for item in items:  # TODO: Validate relative order between different types
-            if isinstance(item, ast.LookupBlock):
-                lookupLists[-1].append(item)
-            elif isinstance(item, ContextualInputItem):
-                input.append(self._normalizedAnyGlyph(item.marked))
-                lookupLists.append([])
+        suffixes = list[_NormalizedAnyGlyph]()
+        for item in items:
+            if isinstance(item, ContextualInputItem):
+                inputs.append(item.marked)
+                lookupLists.append(item.lookups)
             else:
-                (suffix if input else prefix).append(self._normalizedAnyGlyph(item))
+                (suffixes if inputs else prefixes).append(self._normalizedAnyGlyph(item))
 
         if by:
-            assert not any(lookupLists), lookupLists
+            assert not any(lookupLists), (items, by)
             output = self._normalizedAnyGlyph(by)
-            if len(input) == 1:
+            if len(inputs) == 1:
                 statement = ast.SingleSubstStatement(
-                    glyphs=input,
+                    glyphs=inputs,
                     replace=[output],
-                    prefix=prefix,
-                    suffix=suffix,
+                    prefix=prefixes,
+                    suffix=suffixes,
                     forceChain=True,
                 )
             else:
                 statement = ast.LigatureSubstStatement(
-                    prefix=prefix,
-                    glyphs=input,
-                    suffix=suffix,
+                    prefix=prefixes,
+                    glyphs=inputs,
+                    suffix=suffixes,
                     replacement=output,
                     forceChain=True,
                 )
         else:
             statement = ast.ChainContextSubstStatement(
-                prefix=prefix,
-                glyphs=input,
-                suffix=suffix,
+                prefix=prefixes,
+                glyphs=inputs,
+                suffix=suffixes,
                 lookups=[i or None for i in lookupLists],
             )
 
