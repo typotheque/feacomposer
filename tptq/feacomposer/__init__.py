@@ -268,6 +268,7 @@ class FeaComposer:
 
     def _normalizedAnyGlyph(self, glyph: AnyGlyph) -> _NormalizedAnyGlyph:
         if isinstance(glyph, str):
+            assert not glyph.startswith("@") and " " not in glyph, glyph
             return ast.GlyphName(glyph=self.glyphNameProcessor(glyph))
         elif isinstance(glyph, ast.GlyphClassDefinition):
             return ast.GlyphClassName(glyphclass=glyph)
