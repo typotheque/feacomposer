@@ -24,8 +24,8 @@ class LookupFlagDict(TypedDict, total=False):
 
 
 @dataclass
-class ContextualInputItem:
-    marked: _NormalizedAnyGlyph
+class ContextualInput:
+    glyph: _NormalizedAnyGlyph
     lookups: list[ast.LookupBlock]
 
 
@@ -62,11 +62,11 @@ class FeaComposer:
 
     # Expressions:
 
-    def glyphClass(self, items: Iterable[AnyGlyph]) -> ast.GlyphClass:
-        return ast.GlyphClass(glyphs=[self._normalizedAnyGlyph(i) for i in items])
+    def glyphClass(self, glyphs: Iterable[AnyGlyph]) -> ast.GlyphClass:
+        return ast.GlyphClass(glyphs=[self._normalizedAnyGlyph(i) for i in glyphs])
 
-    def input(self, item: AnyGlyph, *lookups: ast.LookupBlock) -> ContextualInputItem:
-        return ContextualInputItem(self._normalizedAnyGlyph(item), [*lookups])
+    def input(self, glyph: AnyGlyph, *lookups: ast.LookupBlock) -> ContextualInput:
+        return ContextualInput(self._normalizedAnyGlyph(glyph), [*lookups])
 
     # Comment or raw text:
 
@@ -80,8 +80,8 @@ class FeaComposer:
 
     # Misc statements:
 
-    def namedGlyphClass(self, name: str, items: Iterable[AnyGlyph]) -> ast.GlyphClassDefinition:
-        definition = ast.GlyphClassDefinition(name, self.glyphClass(items))
+    def namedGlyphClass(self, name: str, glyphs: Iterable[AnyGlyph]) -> ast.GlyphClassDefinition:
+        definition = ast.GlyphClassDefinition(name, self.glyphClass(glyphs))
         self.current.append(definition)
         return definition
 
@@ -104,6 +104,7 @@ class FeaComposer:
         lookupBlock = ast.LookupBlock(name=name)
 
         if feature:
+            assert len(feature) == 4, feature
             featureBlock: ast.FeatureBlock | None = None
             if self.current:
                 lastElement = self.current[-1]
@@ -166,23 +167,23 @@ class FeaComposer:
     # Substitution statements:
 
     @overload
-    def sub(self, item: AnyGlyph, /, *, by: str) -> ast.SingleSubstStatement: ...
+    def sub(self, glyph: AnyGlyph, /, *, by: str) -> ast.SingleSubstStatement: ...
 
     @overload
-    def sub(self, item: AnyGlyphClass, /, *, by: AnyGlyphClass) -> ast.SingleSubstStatement: ...
+    def sub(self, glyph: AnyGlyphClass, /, *, by: AnyGlyphClass) -> ast.SingleSubstStatement: ...
 
     @overload
-    def sub(self, item: str, /, *, by: Iterable[str]) -> ast.MultipleSubstStatement: ...
+    def sub(self, glyph: str, /, *, by: Iterable[str]) -> ast.MultipleSubstStatement: ...
 
     @overload
-    def sub(self, *items: AnyGlyph, by: str) -> ast.LigatureSubstStatement: ...
+    def sub(self, *glyphs: AnyGlyph, by: str) -> ast.LigatureSubstStatement: ...
 
     def sub(
         self,
-        *items: AnyGlyph,
+        *glyphs: AnyGlyph,
         by: AnyGlyph | Iterable[str],
     ) -> ast.SingleSubstStatement | ast.MultipleSubstStatement | ast.LigatureSubstStatement:
-        inputs = [self._normalizedAnyGlyph(i) for i in items]
+        inputs = [self._normalizedAnyGlyph(i) for i in glyphs]
         outputs = (
             self._normalizedAnyGlyph(by)
             if isinstance(by, AnyGlyph)
@@ -210,22 +211,22 @@ class FeaComposer:
 
     def contextualSub(
         self,
-        *items: ContextualInputItem | AnyGlyph,
+        *glyphs: ContextualInput | AnyGlyph,
         by: AnyGlyph | None = None,
     ) -> ast.SingleSubstStatement | ast.LigatureSubstStatement | ast.ChainContextSubstStatement:
         prefixes = list[_NormalizedAnyGlyph]()
-        inputs = list[_NormalizedAnyGlyph]()
-        lookupLists = list[list[ast.LookupBlock]]()
+        inputs, lookupLists = list[_NormalizedAnyGlyph](), list[list[ast.LookupBlock]]()
         suffixes = list[_NormalizedAnyGlyph]()
-        for item in items:
-            if isinstance(item, ContextualInputItem):
-                inputs.append(item.marked)
-                lookupLists.append(item.lookups)
+        for glyph in glyphs:
+            if isinstance(glyph, ContextualInput):
+                assert not suffixes, glyphs
+                inputs.append(glyph.glyph)
+                lookupLists.append(glyph.lookups)
             else:
-                (suffixes if inputs else prefixes).append(self._normalizedAnyGlyph(item))
+                (suffixes if inputs else prefixes).append(self._normalizedAnyGlyph(glyph))
 
         if by:
-            assert not any(lookupLists), (items, by)
+            assert not any(lookupLists), glyphs
             output = self._normalizedAnyGlyph(by)
             if len(inputs) == 1:
                 statement = ast.SingleSubstStatement(
@@ -257,18 +258,18 @@ class FeaComposer:
     # Internal:
 
     @overload
-    def _normalizedAnyGlyph(self, item: str) -> ast.GlyphName: ...
+    def _normalizedAnyGlyph(self, glyph: str) -> ast.GlyphName: ...
 
     @overload
-    def _normalizedAnyGlyph(self, item: ast.GlyphClassDefinition) -> ast.GlyphClassName: ...
+    def _normalizedAnyGlyph(self, glyph: ast.GlyphClassDefinition) -> ast.GlyphClassName: ...
 
     @overload
-    def _normalizedAnyGlyph(self, item: ast.GlyphClass) -> ast.GlyphClass: ...
+    def _normalizedAnyGlyph(self, glyph: ast.GlyphClass) -> ast.GlyphClass: ...
 
-    def _normalizedAnyGlyph(self, item: AnyGlyph) -> _NormalizedAnyGlyph:
-        if isinstance(item, str):
-            return ast.GlyphName(glyph=self.glyphNameProcessor(item))
-        elif isinstance(item, ast.GlyphClassDefinition):
-            return ast.GlyphClassName(glyphclass=item)
+    def _normalizedAnyGlyph(self, glyph: AnyGlyph) -> _NormalizedAnyGlyph:
+        if isinstance(glyph, str):
+            return ast.GlyphName(glyph=self.glyphNameProcessor(glyph))
+        elif isinstance(glyph, ast.GlyphClassDefinition):
+            return ast.GlyphClassName(glyphclass=glyph)
         else:
-            return item
+            return glyph
