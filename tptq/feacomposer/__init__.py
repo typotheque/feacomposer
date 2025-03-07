@@ -54,7 +54,7 @@ class FeaComposer:
     def asFeatureFile(self) -> ast.FeatureFile:
         featureFile = ast.FeatureFile()
         featureFile.statements = [
-            ast.LanguageSystemStatement(script=k, language=i)
+            ast.LanguageSystemStatement(k, i)
             for k, v in sorted(self.languageSystems.items())
             for i in sorted(v)
         ] + self.root
@@ -63,7 +63,7 @@ class FeaComposer:
     # Expressions:
 
     def glyphClass(self, glyphs: Iterable[AnyGlyph]) -> ast.GlyphClass:
-        return ast.GlyphClass(glyphs=[self._normalizedAnyGlyph(i) for i in glyphs])
+        return ast.GlyphClass([self._normalizedAnyGlyph(i) for i in glyphs])
 
     def input(self, glyph: AnyGlyph, *lookups: ast.LookupBlock) -> ContextualInput:
         return ContextualInput(self._normalizedAnyGlyph(glyph), [*lookups])
@@ -74,7 +74,7 @@ class FeaComposer:
         return self.raw("# " + text)
 
     def raw(self, text: str) -> ast.Comment:
-        comment = ast.Comment(text=text)
+        comment = ast.Comment(text)
         self.current.append(comment)
         return comment
 
@@ -101,7 +101,7 @@ class FeaComposer:
         if not name:
             name = f"_{self.nextLookupNumber}"
             self.nextLookupNumber += 1
-        lookupBlock = ast.LookupBlock(name=name)
+        lookupBlock = ast.LookupBlock(name)
 
         if feature:
             assert len(feature) == 4, feature
@@ -111,7 +111,7 @@ class FeaComposer:
                 if isinstance(lastElement, ast.FeatureBlock) and lastElement.name == feature:
                     featureBlock = lastElement
             if not featureBlock:
-                featureBlock = ast.FeatureBlock(name=feature)
+                featureBlock = ast.FeatureBlock(feature)
                 self.current.append(featureBlock)
             scriptLanguagePairs = list[tuple[ast.ScriptStatement, ast.LanguageStatement]]()
             if languageSystems is not None:
@@ -119,10 +119,7 @@ class FeaComposer:
                 for script, languages in sorted(languageSystems.items()):
                     assert languages <= self.languageSystems[script], (script, languages)
                     scriptLanguagePairs.extend(
-                        (
-                            ast.ScriptStatement(script=script),
-                            ast.LanguageStatement(language=i),
-                        )
+                        (ast.ScriptStatement(script), ast.LanguageStatement(i))
                         for i in sorted(languages)
                     )
             self.current = featureBlock.statements
@@ -131,7 +128,7 @@ class FeaComposer:
             self.current.append(lookupBlock)
             for pair in scriptLanguagePairs:
                 self.current.extend(pair)
-                self.current.append(ast.LookupReferenceStatement(lookup=lookupBlock))
+                self.current.append(ast.LookupReferenceStatement(lookupBlock))
         else:
             assert languageSystems is None, languageSystems
             self.current.append(lookupBlock)
@@ -143,7 +140,7 @@ class FeaComposer:
             if markFilteringSet := flags.get("UseMarkFilteringSet"):
                 markFilteringSet = self._normalizedAnyGlyph(markFilteringSet)
             statement = ast.LookupFlagStatement(
-                value=sum(
+                sum(
                     {
                         "RightToLeft": 1,
                         "IgnoreBaseGlyphs": 2,
@@ -156,7 +153,7 @@ class FeaComposer:
                 markFilteringSet=markFilteringSet,
             )
         else:
-            statement = ast.LookupFlagStatement(value=0)
+            statement = ast.LookupFlagStatement(0)
         self.current.append(statement)
 
         try:
@@ -269,8 +266,8 @@ class FeaComposer:
     def _normalizedAnyGlyph(self, glyph: AnyGlyph) -> _NormalizedAnyGlyph:
         if isinstance(glyph, str):
             assert not glyph.startswith("@") and " " not in glyph, glyph
-            return ast.GlyphName(glyph=self.glyphNameProcessor(glyph))
+            return ast.GlyphName(self.glyphNameProcessor(glyph))
         elif isinstance(glyph, ast.GlyphClassDefinition):
-            return ast.GlyphClassName(glyphclass=glyph)
+            return ast.GlyphClassName(glyph)
         else:
             return glyph
