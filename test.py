@@ -42,8 +42,8 @@ def test():
             c.sub(original, by=original + ".compact")
 
     with c.Lookup(feature="pres"):
-        c.contextualSub(thaLike, c.input("repha"), by="repha.tha")
-        c.contextualSub(
+        c.sub(thaLike, c.input("repha"), by="repha.tha")
+        c.sub(
             c.input("kRa", compact),
             c.input("usign", compact),
         )

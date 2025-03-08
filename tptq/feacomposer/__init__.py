@@ -157,60 +157,9 @@ class FeaComposer:
 
     # Substitution statements:
 
-    @overload
-    def sub(self, glyph: AnyGlyph, /, *, by: str) -> ast.SingleSubstStatement: ...
-
-    @overload
-    def sub(self, glyph: AnyGlyphClass, /, *, by: AnyGlyphClass) -> ast.SingleSubstStatement: ...
-
-    @overload
-    def sub(self, glyph: str, /, *, by: Iterable[str]) -> ast.MultipleSubstStatement: ...
-
-    @overload
-    def sub(self, *glyphs: AnyGlyph, by: str) -> ast.LigatureSubstStatement: ...
-
     def sub(
         self,
-        *glyphs: AnyGlyph,
-        by: AnyGlyph | Iterable[str],
-    ) -> ast.SingleSubstStatement | ast.MultipleSubstStatement | ast.LigatureSubstStatement:
-        input = [self._normalized(i) for i in glyphs]
-        output = (
-            self._normalized(by) if isinstance(by, AnyGlyph) else [self._normalized(i) for i in by]
-        )
-        if len(input) == 1:
-            if isinstance(output, list):
-                assert isinstance(input[0], ast.GlyphName)
-                statement = ast.MultipleSubstStatement(
-                    prefix=[],
-                    glyph=input[0],
-                    suffix=[],
-                    replacement=output,
-                    forceChain=False,
-                )
-            else:
-                statement = ast.SingleSubstStatement(
-                    glyphs=input,
-                    replace=[output],
-                    prefix=[],
-                    suffix=[],
-                    forceChain=False,
-                )
-        else:
-            assert isinstance(output, ast.GlyphName)
-            statement = ast.LigatureSubstStatement(
-                prefix=[],
-                glyphs=input,
-                suffix=[],
-                replacement=output,
-                forceChain=False,
-            )
-        self.current.append(statement)
-        return statement
-
-    def contextualSub(
-        self,
-        *glyphs: ContextualInput | AnyGlyph,
+        *glyphs: AnyGlyph | ContextualInput,
         by: AnyGlyph | Iterable[str] | None = None,
     ) -> (
         ast.SingleSubstStatement
@@ -222,15 +171,22 @@ class FeaComposer:
         input = list[_NormalizedAnyGlyph]()
         lookupLists = list[list[ast.LookupBlock]]()
         suffix = list[_NormalizedAnyGlyph]()
-        for glyph in glyphs:
-            if isinstance(glyph, ContextualInput):
+        for item in glyphs:
+            if isinstance(item, ContextualInput):
                 assert not suffix, glyphs
-                input.append(glyph.glyph)
-                lookupLists.append(glyph.lookups)
+                input.append(item.glyph)
+                lookupLists.append(item.lookups)
             elif input:
-                suffix.append(self._normalized(glyph))
+                suffix.append(self._normalized(item))
             else:
-                prefix.append(self._normalized(glyph))
+                prefix.append(self._normalized(item))
+
+        if input:
+            forceChain = True
+        else:
+            input = prefix
+            prefix = []
+            forceChain = False
 
         output = (
             self._normalized(by)
@@ -254,7 +210,7 @@ class FeaComposer:
                         glyph=input[0],
                         suffix=suffix,
                         replacement=output,
-                        forceChain=True,
+                        forceChain=forceChain,
                     )
                 else:
                     statement = ast.SingleSubstStatement(
@@ -262,7 +218,7 @@ class FeaComposer:
                         replace=[output],
                         prefix=prefix,
                         suffix=suffix,
-                        forceChain=True,
+                        forceChain=forceChain,
                     )
             else:
                 assert isinstance(output, ast.GlyphName)
@@ -271,7 +227,7 @@ class FeaComposer:
                     glyphs=input,
                     suffix=suffix,
                     replacement=output,
-                    forceChain=True,
+                    forceChain=forceChain,
                 )
 
         self.current.append(statement)
