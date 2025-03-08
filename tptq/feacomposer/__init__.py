@@ -23,6 +23,14 @@ class LookupFlagDict(TypedDict, total=False):
     UseMarkFilteringSet: AnyGlyphClass
 
 
+lookupFlagNameToMask = {
+    "RightToLeft": 0x0001,
+    "IgnoreBaseGlyphs": 0x0002,
+    "IgnoreLigatures": 0x0004,
+    "IgnoreMarks": 0x0008,
+}
+
+
 @dataclass
 class ContextualInput:
     glyph: _NormalizedAnyGlyph
@@ -63,10 +71,10 @@ class FeaComposer:
     # Expressions:
 
     def glyphClass(self, glyphs: Iterable[AnyGlyph]) -> ast.GlyphClass:
-        return ast.GlyphClass([self._normalizedAnyGlyph(i) for i in glyphs])
+        return ast.GlyphClass([self._normalized(i) for i in glyphs])
 
     def input(self, glyph: AnyGlyph, *lookups: ast.LookupBlock) -> ContextualInput:
-        return ContextualInput(self._normalizedAnyGlyph(glyph), [*lookups])
+        return ContextualInput(self._normalized(glyph), [*lookups])
 
     # Comment or raw text:
 
@@ -134,28 +142,14 @@ class FeaComposer:
             self.current.append(lookupBlock)
 
         self.current = lookupBlock.statements
-        if flags:
-            if markAttachment := flags.get("MarkAttachmentType"):
-                markAttachment = self._normalizedAnyGlyph(markAttachment)
-            if markFilteringSet := flags.get("UseMarkFilteringSet"):
-                markFilteringSet = self._normalizedAnyGlyph(markFilteringSet)
-            statement = ast.LookupFlagStatement(
-                sum(
-                    {
-                        "RightToLeft": 1,
-                        "IgnoreBaseGlyphs": 2,
-                        "IgnoreLigatures": 4,
-                        "IgnoreMarks": 8,
-                    }.get(i, 0)
-                    for i in flags
-                ),
-                markAttachment=markAttachment,
-                markFilteringSet=markFilteringSet,
+        flags = flags or {}
+        self.current.append(
+            ast.LookupFlagStatement(
+                sum(lookupFlagNameToMask.get(i, 0) for i in flags),
+                markAttachment=self._normalized(flags.get("MarkAttachmentType")),
+                markFilteringSet=self._normalized(flags.get("UseMarkFilteringSet")),
             )
-        else:
-            statement = ast.LookupFlagStatement(0)
-        self.current.append(statement)
-
+        )
         try:
             yield lookupBlock
         finally:
@@ -180,74 +174,105 @@ class FeaComposer:
         *glyphs: AnyGlyph,
         by: AnyGlyph | Iterable[str],
     ) -> ast.SingleSubstStatement | ast.MultipleSubstStatement | ast.LigatureSubstStatement:
-        inputs = [self._normalizedAnyGlyph(i) for i in glyphs]
-        outputs = (
-            self._normalizedAnyGlyph(by)
-            if isinstance(by, AnyGlyph)
-            else [self._normalizedAnyGlyph(i) for i in by]
+        input = [self._normalized(i) for i in glyphs]
+        output = (
+            self._normalized(by) if isinstance(by, AnyGlyph) else [self._normalized(i) for i in by]
         )
-
-        if len(inputs) == 1:
-            if isinstance(outputs, list):
-                assert isinstance(inputs[0], ast.GlyphName)
+        if len(input) == 1:
+            if isinstance(output, list):
+                assert isinstance(input[0], ast.GlyphName)
                 statement = ast.MultipleSubstStatement(
-                    prefix=[], glyph=inputs[0], suffix=[], replacement=outputs
+                    prefix=[],
+                    glyph=input[0],
+                    suffix=[],
+                    replacement=output,
+                    forceChain=False,
                 )
             else:
                 statement = ast.SingleSubstStatement(
-                    glyphs=inputs, replace=[outputs], prefix=[], suffix=[], forceChain=False
+                    glyphs=input,
+                    replace=[output],
+                    prefix=[],
+                    suffix=[],
+                    forceChain=False,
                 )
         else:
-            assert isinstance(outputs, ast.GlyphName)
+            assert isinstance(output, ast.GlyphName)
             statement = ast.LigatureSubstStatement(
-                prefix=[], glyphs=inputs, suffix=[], replacement=outputs, forceChain=False
+                prefix=[],
+                glyphs=input,
+                suffix=[],
+                replacement=output,
+                forceChain=False,
             )
-
         self.current.append(statement)
         return statement
 
     def contextualSub(
         self,
         *glyphs: ContextualInput | AnyGlyph,
-        by: AnyGlyph | None = None,
-    ) -> ast.SingleSubstStatement | ast.LigatureSubstStatement | ast.ChainContextSubstStatement:
-        prefixes = list[_NormalizedAnyGlyph]()
-        inputs, lookupLists = list[_NormalizedAnyGlyph](), list[list[ast.LookupBlock]]()
-        suffixes = list[_NormalizedAnyGlyph]()
+        by: AnyGlyph | Iterable[str] | None = None,
+    ) -> (
+        ast.SingleSubstStatement
+        | ast.MultipleSubstStatement
+        | ast.LigatureSubstStatement
+        | ast.ChainContextSubstStatement
+    ):
+        prefix = list[_NormalizedAnyGlyph]()
+        input = list[_NormalizedAnyGlyph]()
+        lookupLists = list[list[ast.LookupBlock]]()
+        suffix = list[_NormalizedAnyGlyph]()
         for glyph in glyphs:
             if isinstance(glyph, ContextualInput):
-                assert not suffixes, glyphs
-                inputs.append(glyph.glyph)
+                assert not suffix, glyphs
+                input.append(glyph.glyph)
                 lookupLists.append(glyph.lookups)
+            elif input:
+                suffix.append(self._normalized(glyph))
             else:
-                (suffixes if inputs else prefixes).append(self._normalizedAnyGlyph(glyph))
+                prefix.append(self._normalized(glyph))
 
-        if by:
+        output = (
+            self._normalized(by)
+            if isinstance(by, AnyGlyph | None)
+            else [self._normalized(i) for i in by]
+        )
+        if output is None:
+            statement = ast.ChainContextSubstStatement(
+                prefix=prefix,
+                glyphs=input,
+                suffix=suffix,
+                lookups=[i or None for i in lookupLists],
+            )
+        else:
             assert not any(lookupLists), glyphs
-            output = self._normalizedAnyGlyph(by)
-            if len(inputs) == 1:
-                statement = ast.SingleSubstStatement(
-                    glyphs=inputs,
-                    replace=[output],
-                    prefix=prefixes,
-                    suffix=suffixes,
-                    forceChain=True,
-                )
+            if len(input) == 1:
+                if isinstance(output, list):
+                    assert isinstance(input[0], ast.GlyphName)
+                    statement = ast.MultipleSubstStatement(
+                        prefix=prefix,
+                        glyph=input[0],
+                        suffix=suffix,
+                        replacement=output,
+                        forceChain=True,
+                    )
+                else:
+                    statement = ast.SingleSubstStatement(
+                        glyphs=input,
+                        replace=[output],
+                        prefix=prefix,
+                        suffix=suffix,
+                        forceChain=True,
+                    )
             else:
+                assert isinstance(output, ast.GlyphName)
                 statement = ast.LigatureSubstStatement(
-                    prefix=prefixes,
-                    glyphs=inputs,
-                    suffix=suffixes,
+                    prefix=prefix,
+                    glyphs=input,
+                    suffix=suffix,
                     replacement=output,
                     forceChain=True,
                 )
-        else:
-            statement = ast.ChainContextSubstStatement(
-                prefix=prefixes,
-                glyphs=inputs,
-                suffix=suffixes,
-                lookups=[i or None for i in lookupLists],
-            )
 
         self.current.append(statement)
         return statement
@@ -255,15 +280,18 @@ class FeaComposer:
     # Internal:
 
     @overload
-    def _normalizedAnyGlyph(self, glyph: str) -> ast.GlyphName: ...
+    def _normalized(self, glyph: str) -> ast.GlyphName: ...
 
     @overload
-    def _normalizedAnyGlyph(self, glyph: ast.GlyphClassDefinition) -> ast.GlyphClassName: ...
+    def _normalized(self, glyph: ast.GlyphClassDefinition) -> ast.GlyphClassName: ...
 
     @overload
-    def _normalizedAnyGlyph(self, glyph: ast.GlyphClass) -> ast.GlyphClass: ...
+    def _normalized(self, glyph: ast.GlyphClass) -> ast.GlyphClass: ...
 
-    def _normalizedAnyGlyph(self, glyph: AnyGlyph) -> _NormalizedAnyGlyph:
+    @overload
+    def _normalized(self, glyph: None) -> None: ...
+
+    def _normalized(self, glyph: AnyGlyph | None) -> _NormalizedAnyGlyph | None:
         if isinstance(glyph, str):
             assert not glyph.startswith("@") and " " not in glyph, glyph
             return ast.GlyphName(self.glyphNameProcessor(glyph))
