@@ -31,18 +31,28 @@ def test():
 
     with c.Lookup(
         feature="rkrf",
-        flags={"UseMarkFilteringSet": c.glyphClass(["virama"])},
+        flags={
+            "UseMarkFilteringSet": c.glyphClass(["virama"]),
+        },
     ):
         c.sub("ka", "virama", "ra", by="kRa")
 
-    thaLike = c.namedGlyphClass("thaLike", ["tha", "dha", "sha"])
+    with c.Lookup(feature="half"):
+        for onset in ["k", "th", "dh", "r", "kR"]:
+            c.sub(onset + "a", "virama", by=onset)
 
     with c.Lookup() as compact:
         for original in ["kRa", "usign"]:
             c.sub(original, by=original + ".compact")
 
     with c.Lookup(feature="pres"):
+        thaLike = c.namedGlyphClass(
+            "thaLike",
+            ["tha", "dha"],
+        )
         c.sub(thaLike, c.input("repha"), by="repha.tha")
+
+        c.sub("k", c.input("kRa"), ignore=True)
         c.sub(
             c.input("kRa", compact),
             c.input("usign", compact),
