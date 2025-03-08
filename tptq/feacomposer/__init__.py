@@ -161,11 +161,13 @@ class FeaComposer:
         self,
         *glyphs: AnyGlyph | ContextualInput,
         by: AnyGlyph | Iterable[str] | None = None,
+        ignore=False,
     ) -> (
         ast.SingleSubstStatement
         | ast.MultipleSubstStatement
         | ast.LigatureSubstStatement
         | ast.ChainContextSubstStatement
+        | ast.IgnoreSubstStatement
     ):
         prefix = list[_NormalizedAnyGlyph]()
         input = list[_NormalizedAnyGlyph]()
@@ -181,27 +183,31 @@ class FeaComposer:
             else:
                 prefix.append(self._normalized(item))
 
-        if input:
-            forceChain = True
+        if by is None:
+            assert input, glyphs
+            if ignore:
+                assert not any(lookupLists), glyphs
+                statement = ast.IgnoreSubstStatement([(prefix, input, suffix)])
+            else:
+                statement = ast.ChainContextSubstStatement(
+                    prefix=prefix,
+                    glyphs=input,
+                    suffix=suffix,
+                    lookups=[i or None for i in lookupLists],
+                )
         else:
-            input = prefix
-            prefix = []
-            forceChain = False
-
-        output = (
-            self._normalized(by)
-            if isinstance(by, AnyGlyph | None)
-            else [self._normalized(i) for i in by]
-        )
-        if output is None:
-            statement = ast.ChainContextSubstStatement(
-                prefix=prefix,
-                glyphs=input,
-                suffix=suffix,
-                lookups=[i or None for i in lookupLists],
+            assert not any(lookupLists) and not ignore, (glyphs, by)
+            if input:
+                forceChain = True
+            else:
+                input = prefix
+                prefix = []
+                forceChain = False
+            output = (
+                self._normalized(by)
+                if isinstance(by, AnyGlyph)
+                else [self._normalized(i) for i in by]
             )
-        else:
-            assert not any(lookupLists), glyphs
             if len(input) == 1:
                 if isinstance(output, list):
                     assert isinstance(input[0], ast.GlyphName)
