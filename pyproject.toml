@@ -1,13 +1,13 @@
 [project]
 name = "tptq.feacomposer"
-version = "1.5.0"
+version = "1.5.1"
 description = "A feaLib wrapper for composing FEA code in Python"
 license = { text = "MIT" }
 readme = "README.md"
-requires-python = ">= 3.10.0, < 4.0.0"
 authors = [{ name = "Liang Hai", email = "liang@typotheque.com" }]
 urls.repository = "https://github.com/typotheque/feacomposer"
 urls.releasenotes = "https://github.com/typotheque/feacomposer/releases"
+requires-python = ">= 3.10.0, < 4.0.0"
 dependencies = [
     "fonttools >= 4.43.0, <= 5.0.0"
     # https://github.com/typotheque/feacomposer/pull/2

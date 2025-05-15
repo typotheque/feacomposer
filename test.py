@@ -1,3 +1,5 @@
+from fontTools.feaLib.ast import BaseAxis, TableBlock
+
 from tptq.feacomposer import FeaComposer
 
 
@@ -57,6 +59,16 @@ def test():
             c.input("kRa", compact),
             c.input("usign", compact),
         )
+
+    table = TableBlock("BASE")
+    table.statements.append(
+        BaseAxis(
+            bases=["ideo"],
+            scripts=[("hani", "ideo", [-120])],
+            vertical=False,
+        )
+    )
+    c.current.append(table)
 
     print(c.asFeatureFile())
 
