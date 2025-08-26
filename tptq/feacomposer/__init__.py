@@ -113,28 +113,21 @@ class FeaComposer:
 
         if feature:
             assert len(feature) == 4, feature
-            featureBlock: ast.FeatureBlock | None = None
-            if self.current:
-                lastElement = self.current[-1]
-                if isinstance(lastElement, ast.FeatureBlock) and lastElement.name == feature:
-                    featureBlock = lastElement
-            if not featureBlock:
-                featureBlock = ast.FeatureBlock(feature)
-                self.current.append(featureBlock)
-            scriptLanguagePairs = list[tuple[ast.ScriptStatement, ast.LanguageStatement]]()
-            for script, languages in sorted((languageSystems or self.languageSystems).items()):
-                assert languages <= self.languageSystems[script], (script, languages)
-                scriptLanguagePairs.extend(
-                    (ast.ScriptStatement(script), ast.LanguageStatement(i))
-                    for i in sorted(languages)
-                )
+            featureBlock = ast.FeatureBlock(feature)
+            self.current.append(featureBlock)
             self.current = featureBlock.statements
-            if scriptLanguagePairs:
-                self.current.extend(scriptLanguagePairs.pop(0))
-            self.current.append(lookupBlock)
-            for pair in scriptLanguagePairs:
-                self.current.extend(pair)
-                self.current.append(ast.LookupReferenceStatement(lookupBlock))
+            lookupBlockReferenceable = False
+            for script, languages in sorted((languageSystems or self.languageSystems).items()):
+                assert languages, (script, languages)
+                for language in sorted(languages):
+                    assert language in self.languageSystems[script], (script, language)
+                    self.current.append(ast.ScriptStatement(script))
+                    self.current.append(ast.LanguageStatement(language))
+                    if not lookupBlockReferenceable:
+                        self.current.append(lookupBlock)
+                        lookupBlockReferenceable = True
+                    else:
+                        self.current.append(ast.LookupReferenceStatement(lookupBlock))
         else:
             assert not languageSystems, languageSystems
             self.current.append(lookupBlock)
