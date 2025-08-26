@@ -2,6 +2,9 @@
   "files.trimTrailingWhitespace": true,
   "files.insertFinalNewline": true,
   "files.trimFinalNewlines": true,
+  "files.exclude": {
+    ".venv": true
+  },
   "editor.defaultFormatter": "esbenp.prettier-vscode",
   "editor.formatOnSave": true,
   "[python]": {
@@ -11,9 +14,7 @@
     }
   },
   "python.analysis.typeCheckingMode": "basic",
-  "python.testing.unittestEnabled": false,
   "python.testing.pytestEnabled": true,
-  "python.testing.pytestArgs": ["test.py"],
   "black-formatter.args": ["--line-length", "100"],
   "isort.args": ["--profile", "black"],
   "[toml]": {

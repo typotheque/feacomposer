@@ -1,7 +1,4 @@
-# https://docs.github.com/en/actions/use-cases-and-examples/building-and-testing/building-and-testing-python#publishing-to-pypi
-
-# Test locally with https://github.com/nektos/act:
-#   act --workflows .github/workflows/pypi.yml --platform ubuntu-latest=catthehacker/ubuntu:full-latest
+# Based on: https://docs.github.com/en/actions/use-cases-and-examples/building-and-testing/building-and-testing-python#publishing-to-pypi
 
 name: Publish to PyPI
 
@@ -18,12 +15,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: pipx install poetry
+
       - uses: actions/setup-python@v5
         with:
-          python-version-file: pyproject.toml
-          cache: poetry
-      - run: poetry install
-      - run: poetry run pytest test.py
-      - run: poetry build
+          python-version-file: .python-version
+      - uses: astral-sh/setup-uv@v6
+
+      - run: uv run pytest
+      - run: uv build
+
       - uses: pypa/gh-action-pypi-publish@release/v1
