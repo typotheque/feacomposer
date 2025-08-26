@@ -59,13 +59,15 @@ class FeaComposer:
         self.current = self.root
         self.nextLookupNumber = 1
 
-    def asFeatureFile(self) -> ast.FeatureFile:
+    def asFeatureFile(self, languageSystems: bool = True) -> ast.FeatureFile:
         featureFile = ast.FeatureFile()
-        featureFile.statements = [
-            ast.LanguageSystemStatement(k, i)
-            for k, v in sorted(self.languageSystems.items())
-            for i in sorted(v)
-        ] + self.root
+        if languageSystems:
+            featureFile.statements.extend(
+                ast.LanguageSystemStatement(k, i)
+                for k, v in sorted(self.languageSystems.items())
+                for i in sorted(v)
+            )
+        featureFile.statements.extend(self.root)
         return featureFile
 
     # Expressions:
@@ -152,7 +154,7 @@ class FeaComposer:
         self,
         *glyphs: AnyGlyph | ContextualInput,
         by: AnyGlyph | Iterable[str] | None = None,
-        ignore=False,
+        ignore: bool = False,
     ) -> (
         ast.SingleSubstStatement
         | ast.MultipleSubstStatement

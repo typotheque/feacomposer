@@ -45,6 +45,8 @@ The printed FEA code:
 ```fea
 languagesystem DFLT dflt;
 feature liga {
+    script DFLT;
+    language dflt;
     lookup _1 {
         lookupflag 0;
         sub f i by f_i;
