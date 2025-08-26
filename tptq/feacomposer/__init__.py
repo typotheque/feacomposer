@@ -122,14 +122,12 @@ class FeaComposer:
                 featureBlock = ast.FeatureBlock(feature)
                 self.current.append(featureBlock)
             scriptLanguagePairs = list[tuple[ast.ScriptStatement, ast.LanguageStatement]]()
-            if languageSystems is not None:
-                assert languageSystems, languageSystems
-                for script, languages in sorted(languageSystems.items()):
-                    assert languages <= self.languageSystems[script], (script, languages)
-                    scriptLanguagePairs.extend(
-                        (ast.ScriptStatement(script), ast.LanguageStatement(i))
-                        for i in sorted(languages)
-                    )
+            for script, languages in sorted((languageSystems or self.languageSystems).items()):
+                assert languages <= self.languageSystems[script], (script, languages)
+                scriptLanguagePairs.extend(
+                    (ast.ScriptStatement(script), ast.LanguageStatement(i))
+                    for i in sorted(languages)
+                )
             self.current = featureBlock.statements
             if scriptLanguagePairs:
                 self.current.extend(scriptLanguagePairs.pop(0))
@@ -138,7 +136,7 @@ class FeaComposer:
                 self.current.extend(pair)
                 self.current.append(ast.LookupReferenceStatement(lookupBlock))
         else:
-            assert languageSystems is None, languageSystems
+            assert not languageSystems, languageSystems
             self.current.append(lookupBlock)
 
         self.current = lookupBlock.statements
