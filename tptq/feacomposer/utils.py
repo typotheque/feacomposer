@@ -11,7 +11,10 @@ from fontTools.feaLib.parser import Parser
 from . import StringProcessor
 
 
-def processGlyphNamesInCode(code: str, processor: StringProcessor) -> FeatureFile:
+def processGlyphNamesInCode(
+    code: str,
+    processor: StringProcessor,
+) -> FeatureFile:
     with StringIO(code) as f:
         parser = GlyphNameProcessingParser(f, processor=processor)
     return parser.parse()

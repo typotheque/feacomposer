@@ -49,6 +49,7 @@ class FeaComposer:
 
     def __init__(
         self,
+        *,
         languageSystems: LanguageSystemDict | None = None,
         glyphNameProcessor: StringProcessor = lambda name: name,
     ) -> None:
@@ -59,7 +60,11 @@ class FeaComposer:
         self.current = self.root
         self.nextLookupNumber = 1
 
-    def asFeatureFile(self, languageSystems: bool = True) -> ast.FeatureFile:
+    def asFeatureFile(
+        self,
+        *,
+        languageSystems: bool = True,
+    ) -> ast.FeatureFile:
         featureFile = ast.FeatureFile()
         if languageSystems:
             featureFile.statements.extend(
@@ -72,25 +77,42 @@ class FeaComposer:
 
     # Expressions:
 
-    def glyphClass(self, glyphs: Iterable[AnyGlyph]) -> ast.GlyphClass:
+    def glyphClass(
+        self,
+        glyphs: Iterable[AnyGlyph],
+    ) -> ast.GlyphClass:
         return ast.GlyphClass([self._normalized(i) for i in glyphs])
 
-    def input(self, glyph: AnyGlyph, *lookups: ast.LookupBlock) -> ContextualInput:
+    def input(
+        self,
+        glyph: AnyGlyph,
+        *lookups: ast.LookupBlock,
+    ) -> ContextualInput:
         return ContextualInput(self._normalized(glyph), [*lookups])
 
     # Comment or raw text:
 
-    def comment(self, text: str) -> ast.Comment:
+    def comment(
+        self,
+        text: str,
+    ) -> ast.Comment:
         return self.raw("# " + text)
 
-    def raw(self, text: str) -> ast.Comment:
+    def raw(
+        self,
+        text: str,
+    ) -> ast.Comment:
         comment = ast.Comment(text)
         self.current.append(comment)
         return comment
 
     # Misc statements:
 
-    def namedGlyphClass(self, name: str, glyphs: Iterable[AnyGlyph]) -> ast.GlyphClassDefinition:
+    def namedGlyphClass(
+        self,
+        name: str,
+        glyphs: Iterable[AnyGlyph],
+    ) -> ast.GlyphClassDefinition:
         definition = ast.GlyphClassDefinition(name, self.glyphClass(glyphs))
         self.current.append(definition)
         return definition
