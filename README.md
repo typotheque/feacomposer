@@ -32,7 +32,7 @@ Compose FEA code in Python:
 ```py
 from tptq.feacomposer import FeaComposer
 
-c = FeaComposer()
+c = FeaComposer(languageSystems={})
 
 with c.Lookup(feature="liga"):
     c.sub("f", "i", by="f_i")

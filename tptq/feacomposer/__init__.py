@@ -50,10 +50,10 @@ class FeaComposer:
     def __init__(
         self,
         *,
-        languageSystems: LanguageSystemDict | None = None,
+        languageSystems: LanguageSystemDict,
         glyphNameProcessor: StringProcessor = lambda name: name,
     ) -> None:
-        self.languageSystems = languageSystems or {}
+        self.languageSystems = languageSystems
         self.glyphNameProcessor = glyphNameProcessor
 
         self.root = list[ast.Element]()
