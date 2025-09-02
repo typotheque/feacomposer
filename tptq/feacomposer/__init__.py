@@ -53,7 +53,7 @@ class FeaComposer:
         languageSystems: LanguageSystemDict | None = None,
         glyphNameProcessor: StringProcessor = lambda name: name,
     ) -> None:
-        self.languageSystems = {"DFLT": {"dflt"}} if languageSystems is None else languageSystems
+        self.languageSystems = languageSystems or {}
         self.glyphNameProcessor = glyphNameProcessor
 
         self.root = list[ast.Element]()
