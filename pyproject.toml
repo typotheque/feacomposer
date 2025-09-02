@@ -1,6 +1,6 @@
 [project]
 name = "tptq.feacomposer"
-version = "1.6.0"
+version = "1.7.0"
 description = "A feaLib wrapper for composing FEA code in Python"
 license = { text = "MIT" }
 readme = "README.md"

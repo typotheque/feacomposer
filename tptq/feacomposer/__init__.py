@@ -140,18 +140,21 @@ class FeaComposer:
             featureBlock = ast.FeatureBlock(feature)
             self.current.append(featureBlock)
             self.current = featureBlock.statements
-            lookupBlockReferenceable = False
-            for script, languages in sorted((languageSystems or self.languageSystems).items()):
-                assert languages, (script, languages)
-                for language in sorted(languages):
-                    assert language in self.languageSystems[script], (script, language)
-                    self.current.append(ast.ScriptStatement(script))
-                    self.current.append(ast.LanguageStatement(language))
-                    if not lookupBlockReferenceable:
-                        self.current.append(lookupBlock)
-                        lookupBlockReferenceable = True
-                    else:
-                        self.current.append(ast.LookupReferenceStatement(lookupBlock))
+            if languageSystems := (languageSystems or self.languageSystems):
+                lookupBlockReferenceable = False
+                for script, languages in sorted(languageSystems.items()):
+                    assert languages, (script, languages)
+                    for language in sorted(languages):
+                        assert language in self.languageSystems[script], (script, language)
+                        self.current.append(ast.ScriptStatement(script))
+                        self.current.append(ast.LanguageStatement(language))
+                        if not lookupBlockReferenceable:
+                            self.current.append(lookupBlock)
+                            lookupBlockReferenceable = True
+                        else:
+                            self.current.append(ast.LookupReferenceStatement(lookupBlock))
+            else:
+                self.current.append(lookupBlock)
         else:
             assert not languageSystems, languageSystems
             self.current.append(lookupBlock)
