@@ -60,19 +60,16 @@ class FeaComposer:
         self.current = self.root
         self.nextLookupNumber = 1
 
-    def asFeatureFile(
-        self,
-        *,
-        languageSystems: bool = True,
-    ) -> ast.FeatureFile:
+    def languageSystemStatements(self) -> list[ast.LanguageSystemStatement]:
+        return [
+            ast.LanguageSystemStatement(k, i)
+            for k, v in sorted(self.languageSystems.items())
+            for i in sorted(v)
+        ]
+
+    def asFeatureFile(self) -> ast.FeatureFile:
         featureFile = ast.FeatureFile()
-        if languageSystems:
-            featureFile.statements.extend(
-                ast.LanguageSystemStatement(k, i)
-                for k, v in sorted(self.languageSystems.items())
-                for i in sorted(v)
-            )
-        featureFile.statements.extend(self.root)
+        featureFile.statements = self.languageSystemStatements() + self.root
         return featureFile
 
     # Expressions:
