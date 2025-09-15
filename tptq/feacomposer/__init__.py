@@ -114,6 +114,31 @@ class FeaComposer:
         self.current.append(definition)
         return definition
 
+    def lookupReference(
+        self,
+        lookup: ast.LookupBlock,
+        feature: str,
+        *,
+        languageSystems: LanguageSystemDict | None = None,
+    ) -> ast.LookupReferenceStatement:
+        assert len(feature) == 4, feature
+        featureBlock = ast.FeatureBlock(feature)
+        self.current.append(featureBlock)
+        self.current = featureBlock.statements
+
+        reference = ast.LookupReferenceStatement(lookup)
+        if languageSystems := (languageSystems or self.languageSystems):
+            for script, languages in sorted(languageSystems.items()):
+                assert languages, (script, languages)
+                for language in sorted(languages):
+                    assert language in self.languageSystems[script], (script, language)
+                    self.current.append(ast.ScriptStatement(script))
+                    self.current.append(ast.LanguageStatement(language))
+                    self.current.append(reference)
+        else:
+            self.current.append(reference)
+        return reference
+
     # Block statements:
 
     @contextmanager
