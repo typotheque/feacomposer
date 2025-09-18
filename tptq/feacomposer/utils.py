@@ -5,19 +5,9 @@ from io import StringIO
 from pathlib import Path
 from typing import IO
 
-from fontTools.feaLib.ast import FeatureFile
 from fontTools.feaLib.parser import Parser
 
 from . import StringProcessor
-
-
-def processGlyphNamesInCode(
-    code: str,
-    processor: StringProcessor,
-) -> FeatureFile:
-    with StringIO(code) as f:
-        parser = GlyphNameProcessingParser(f, processor=processor)
-    return parser.parse()
 
 
 class GlyphNameProcessingParser(Parser):
@@ -29,7 +19,7 @@ class GlyphNameProcessingParser(Parser):
 
     def __init__(
         self,
-        file: IO[str],
+        code: str | IO[str],
         processor: StringProcessor,
         *,
         newNames: Iterable[str] = (),
@@ -37,12 +27,13 @@ class GlyphNameProcessingParser(Parser):
         includeDir: Path | None = None,
     ) -> None:
         self.processor = processor
-        super().__init__(
-            featurefile=file,
-            glyphNames=newNames,
-            followIncludes=followIncludes,
-            includeDir=includeDir,
-        )
+        with StringIO(code) if isinstance(code, str) else code as f:
+            super().__init__(
+                featurefile=f,
+                glyphNames=newNames,
+                followIncludes=followIncludes,
+                includeDir=includeDir,
+            )
 
     def expect_glyph_(self) -> str:
         old = super().expect_glyph_()
