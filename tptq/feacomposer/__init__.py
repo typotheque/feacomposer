@@ -15,12 +15,12 @@ _NormalizedAnyGlyph = ast.GlyphName | _NormalizedAnyGlyphClass
 
 
 class LookupFlagDict(TypedDict, total=False):
-    RightToLeft: Literal[True]
-    IgnoreBaseGlyphs: Literal[True]
-    IgnoreLigatures: Literal[True]
-    IgnoreMarks: Literal[True]
-    MarkAttachmentType: AnyGlyphClass
-    UseMarkFilteringSet: AnyGlyphClass
+    RightToLeft: bool
+    IgnoreBaseGlyphs: bool
+    IgnoreLigatures: bool
+    IgnoreMarks: bool
+    MarkAttachmentType: AnyGlyphClass | None
+    UseMarkFilteringSet: AnyGlyphClass | None
 
 
 lookupFlagNameToMask = {
@@ -185,7 +185,7 @@ class FeaComposer:
         flags = flags or {}
         self.current.append(
             ast.LookupFlagStatement(
-                sum(lookupFlagNameToMask.get(i, 0) for i in flags),
+                sum(lookupFlagNameToMask.get(k, 0) for k, v in flags.items() if v),
                 markAttachment=self._normalized(flags.get("MarkAttachmentType")),
                 markFilteringSet=self._normalized(flags.get("UseMarkFilteringSet")),
             )
