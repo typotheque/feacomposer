@@ -200,8 +200,7 @@ class FeaComposer:
     def sub(
         self,
         *glyphs: AnyGlyph | ContextualInput,
-        by: AnyGlyph | Iterable[str] | None = None,
-        ignore: bool = False,
+        by: AnyGlyph | Iterable[str] | None,
     ) -> (
         ast.SingleSubstStatement
         | ast.MultipleSubstStatement
@@ -225,18 +224,17 @@ class FeaComposer:
 
         if by is None:
             assert input, glyphs
-            if ignore:
-                assert not any(lookupLists), glyphs
-                statement = ast.IgnoreSubstStatement([(prefix, input, suffix)])
-            else:
+            if any(lookupLists):
                 statement = ast.ChainContextSubstStatement(
                     prefix=prefix,
                     glyphs=input,
                     suffix=suffix,
                     lookups=[i or None for i in lookupLists],
                 )
+            else:
+                statement = ast.IgnoreSubstStatement([(prefix, input, suffix)])
         else:
-            assert not any(lookupLists) and not ignore, (glyphs, by)
+            assert not any(lookupLists), (glyphs, by)
             if input:
                 forceChain = True
             else:

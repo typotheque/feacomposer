@@ -54,10 +54,11 @@ def test():
         )
         c.sub(thaLike, c.input("repha"), by="repha.tha")
 
-        c.sub("k", c.input("kRa"), ignore=True)
+        c.sub("k", c.input("kRa"), by=None)
         c.sub(
             c.input("kRa", compact),
             c.input("usign", compact),
+            by=None,
         )
 
     table = TableBlock("BASE")

@@ -26,7 +26,6 @@ class GlyphNameProcessingParser(Parser):
         followIncludes: bool = True,
         includeDir: Path | None = None,
     ) -> None:
-        self.processor = processor
         with StringIO(code) if isinstance(code, str) else code as f:
             super().__init__(
                 featurefile=f,
@@ -34,6 +33,7 @@ class GlyphNameProcessingParser(Parser):
                 followIncludes=followIncludes,
                 includeDir=includeDir,
             )
+        self.processor = processor
 
     def expect_glyph_(self) -> str:
         old = super().expect_glyph_()
