@@ -110,6 +110,7 @@ class FeaComposer:
         name: str,
         glyphs: Iterable[AnyGlyph],
     ) -> ast.GlyphClassDefinition:
+        assert not name.startswith("@"), name
         definition = ast.GlyphClassDefinition(name, self.glyphClass(glyphs))
         self.current.append(definition)
         return definition
