@@ -24,8 +24,10 @@ For the following use cases, you **will not** benefit from this package:
 Install from PyPI:
 
 ```sh
-pip install tptq.feacomposer
+pip install tptq-feacomposer
 ```
+
+> Note the namespace dot in the “import package” name below has been normalized to a dash in the “distribution package” name above. See also [Distribution package vs. import package](https://packaging.python.org/en/latest/discussions/distribution-package-vs-import-package/).
 
 Compose FEA code in Python:
 
