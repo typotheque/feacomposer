@@ -5,6 +5,7 @@ from io import StringIO
 from pathlib import Path
 from typing import IO
 
+from fontTools.feaLib.lexer import Lexer
 from fontTools.feaLib.parser import Parser
 
 from . import StringProcessor
@@ -36,5 +37,8 @@ class GlyphNameProcessingParser(Parser):
         self.processor = processor
 
     def expect_glyph_(self) -> str:
-        old = super().expect_glyph_()
-        return self.processor(old)
+        glyph = super().expect_glyph_()
+        if self.cur_token_type_ is Lexer.NAME:
+            return self.processor(glyph)
+        else:
+            return glyph
