@@ -1,17 +1,27 @@
 from collections.abc import Callable, Iterable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Literal, TypedDict, overload
+from typing import TypedDict, overload
 
 from fontTools.feaLib import ast
 
-LanguageSystemDict = dict[str | Literal["DFLT"], set[str | Literal["dflt"]]]
+LanguageSystemDict = dict[str, set[str]]
+DEFAULT_SCRIPT_TAG = "DFLT"
+DEFAULT_LANGUAGE_TAG = "dflt"
+
 StringProcessor = Callable[[str], str]
 
 AnyGlyphClass = ast.GlyphClass | ast.GlyphClassDefinition
+NormalizedAnyGlyphClass = ast.GlyphClass | ast.GlyphClassName
+
 AnyGlyph = str | AnyGlyphClass
-_NormalizedAnyGlyphClass = ast.GlyphClass | ast.GlyphClassName
-_NormalizedAnyGlyph = ast.GlyphName | _NormalizedAnyGlyphClass
+NormalizedAnyGlyph = ast.GlyphName | NormalizedAnyGlyphClass
+
+
+@dataclass
+class ContextualInput:
+    glyph: NormalizedAnyGlyph
+    lookups: list[ast.LookupBlock]
 
 
 class LookupFlagDict(TypedDict, total=False):
@@ -21,20 +31,6 @@ class LookupFlagDict(TypedDict, total=False):
     IgnoreMarks: bool
     MarkAttachmentType: AnyGlyphClass | None
     UseMarkFilteringSet: AnyGlyphClass | None
-
-
-lookupFlagNameToMask = {
-    "RightToLeft": 0x0001,
-    "IgnoreBaseGlyphs": 0x0002,
-    "IgnoreLigatures": 0x0004,
-    "IgnoreMarks": 0x0008,
-}
-
-
-@dataclass
-class ContextualInput:
-    glyph: _NormalizedAnyGlyph
-    lookups: list[ast.LookupBlock]
 
 
 @dataclass
@@ -63,8 +59,8 @@ class FeaComposer:
     def languageSystemStatements(self) -> list[ast.LanguageSystemStatement]:
         return [
             ast.LanguageSystemStatement(k, i)
-            for k, v in sorted(self.languageSystems.items())
-            for i in sorted(v)
+            for k, v in _sortedLanguageSystemDict(self.languageSystems).items()
+            for i in v
         ]
 
     def asFeatureFile(self) -> ast.FeatureFile:
@@ -129,9 +125,9 @@ class FeaComposer:
 
         reference = ast.LookupReferenceStatement(lookup)
         if languageSystems := (languageSystems or self.languageSystems):
-            for script, languages in sorted(languageSystems.items()):
+            for script, languages in _sortedLanguageSystemDict(languageSystems).items():
                 assert languages, (script, languages)
-                for language in sorted(languages):
+                for language in languages:
                     assert language in self.languageSystems[script], (script, language)
                     self.current.append(ast.ScriptStatement(script))
                     self.current.append(ast.LanguageStatement(language))
@@ -165,9 +161,9 @@ class FeaComposer:
             self.current = featureBlock.statements
             if languageSystems := (languageSystems or self.languageSystems):
                 lookupBlockReferenceable = False
-                for script, languages in sorted(languageSystems.items()):
+                for script, languages in _sortedLanguageSystemDict(languageSystems).items():
                     assert languages, (script, languages)
-                    for language in sorted(languages):
+                    for language in languages:
                         assert language in self.languageSystems[script], (script, language)
                         self.current.append(ast.ScriptStatement(script))
                         self.current.append(ast.LanguageStatement(language))
@@ -186,7 +182,7 @@ class FeaComposer:
         flags = flags or {}
         self.current.append(
             ast.LookupFlagStatement(
-                sum(lookupFlagNameToMask.get(k, 0) for k, v in flags.items() if v),
+                sum(_LOOKUP_FLAG_NAME_TO_MASK.get(k, 0) for k, v in flags.items() if v),
                 markAttachment=self._normalized(flags.get("MarkAttachmentType")),
                 markFilteringSet=self._normalized(flags.get("UseMarkFilteringSet")),
             )
@@ -209,10 +205,10 @@ class FeaComposer:
         | ast.ChainContextSubstStatement
         | ast.IgnoreSubstStatement
     ):
-        prefix = list[_NormalizedAnyGlyph]()
-        input = list[_NormalizedAnyGlyph]()
+        prefix = list[NormalizedAnyGlyph]()
+        input = list[NormalizedAnyGlyph]()
         lookupLists = list[list[ast.LookupBlock]]()
-        suffix = list[_NormalizedAnyGlyph]()
+        suffix = list[NormalizedAnyGlyph]()
         for item in glyphs:
             if isinstance(item, ContextualInput):
                 assert not suffix, glyphs
@@ -292,7 +288,7 @@ class FeaComposer:
     @overload
     def _normalized(self, glyph: None) -> None: ...
 
-    def _normalized(self, glyph: AnyGlyph | None) -> _NormalizedAnyGlyph | None:
+    def _normalized(self, glyph: AnyGlyph | None) -> NormalizedAnyGlyph | None:
         if isinstance(glyph, str):
             assert not glyph.startswith("@") and " " not in glyph, glyph
             return ast.GlyphName(self.glyphNameProcessor(glyph))
@@ -300,3 +296,18 @@ class FeaComposer:
             return ast.GlyphClassName(glyph)
         else:
             return glyph
+
+
+_LOOKUP_FLAG_NAME_TO_MASK = {
+    "RightToLeft": 0x0001,
+    "IgnoreBaseGlyphs": 0x0002,
+    "IgnoreLigatures": 0x0004,
+    "IgnoreMarks": 0x0008,
+}
+
+
+def _sortedLanguageSystemDict(mapping: LanguageSystemDict) -> dict[str, list[str]]:
+    return {
+        k: sorted(v, key=lambda x: "" if x == DEFAULT_LANGUAGE_TAG else x)
+        for k, v in sorted(mapping.items(), key=lambda x: "" if x == DEFAULT_SCRIPT_TAG else x)
+    }
