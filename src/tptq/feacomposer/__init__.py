@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import TypedDict, overload
 
 from fontTools.feaLib import ast
+from fontTools.feaLib.lexer import Lexer
 
 LanguageSystemDict = dict[str, set[str]]
 DEFAULT_SCRIPT_TAG = "DFLT"
@@ -106,7 +107,7 @@ class FeaComposer:
         name: str,
         glyphs: Iterable[AnyGlyph],
     ) -> ast.GlyphClassDefinition:
-        assert not name.startswith("@"), name
+        assert Lexer.RE_GLYPHCLASS.match(name), name
         definition = ast.GlyphClassDefinition(name, self.glyphClass(glyphs))
         self.current.append(definition)
         return definition
