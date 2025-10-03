@@ -175,7 +175,7 @@ wheels = [
 
 [[package]]
 name = "tptq-feacomposer"
-version = "1.11.4"
+version = "1.11.6"
 source = { editable = "." }
 dependencies = [
     { name = "fonttools" },
