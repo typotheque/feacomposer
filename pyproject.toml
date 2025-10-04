@@ -24,4 +24,4 @@ build-backend = "uv_build"
 module-name = "tptq.feacomposer"
 
 [tool.pytest.ini_options]
-addopts = "test.py"
+addopts = ["examples.py", "--import-mode=importlib", "--color=yes"]

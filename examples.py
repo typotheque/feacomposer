@@ -1,18 +1,15 @@
+from pathlib import Path
+
 from fontTools.feaLib.ast import BaseAxis, TableBlock
 
 from tptq.feacomposer import FeaComposer
 
+reference = (Path.cwd() / "examples.fea").read_text()
 
-def test():
-    def insertNamespace(name: str) -> str:
-        head, sep, tail = name.partition(".")
-        return head + "-deva" + sep + tail
 
+def test() -> None:
     c = FeaComposer(
-        languageSystems={
-            "DFLT": {"dflt"},
-            "dev2": {"dflt", "NEP "},
-        },
+        languageSystems={"dev2": {"dflt", "NEP "}},
         glyphNameProcessor=insertNamespace,
     )
 
@@ -43,21 +40,22 @@ def test():
         for onset in ["k", "th", "dh", "r", "kR"]:
             c.sub(onset + "a", "virama", by=onset)
 
-    with c.Lookup() as compact:
+    classThaLike = c.namedGlyphClass(
+        "thaLike",
+        ["tha", "dha"],
+    )
+
+    with c.Lookup() as lookupCompact:
         for original in ["kRa", "usign"]:
             c.sub(original, by=original + ".compact")
 
     with c.Lookup(feature="pres"):
-        thaLike = c.namedGlyphClass(
-            "thaLike",
-            ["tha", "dha"],
-        )
-        c.sub(thaLike, c.input("repha"), by="repha.tha")
+        c.sub(classThaLike, c.input("repha"), by="repha.tha")
 
         c.sub("k", c.input("kRa"), by=None)
         c.sub(
-            c.input("kRa", compact),
-            c.input("usign", compact),
+            c.input("kRa", lookupCompact),
+            c.input("usign", lookupCompact),
             by=None,
         )
 
@@ -71,8 +69,9 @@ def test():
     )
     c.current.append(table)
 
-    print(c.asFeatureFile())
+    assert c.asFeatureFile().asFea() == reference
 
 
-if __name__ == "__main__":
-    test()
+def insertNamespace(name: str) -> str:
+    head, sep, tail = name.partition(".")
+    return head + "-deva" + sep + tail

@@ -34,7 +34,7 @@ Compose FEA code in Python:
 ```py
 from tptq.feacomposer import FeaComposer
 
-c = FeaComposer(languageSystems={})
+c = FeaComposer(languageSystems={"latn": {"dflt"}})
 
 with c.Lookup(feature="liga"):
     c.sub("f", "i", by="f_i")
@@ -45,13 +45,17 @@ print(c.asFeatureFile())
 The printed FEA code:
 
 ```fea
+languagesystem latn dflt;
 feature liga {
+    script latn;
+    language dflt;
     lookup _1 {
         lookupflag 0;
         sub f i by f_i;
     } _1;
 
 } liga;
+
 ```
 
-See [test.py](https://github.com/typotheque/feacomposer/blob/main/test.py) for more examples.
+To learn more, see [examples.py](https://github.com/typotheque/feacomposer/blob/main/examples.py) and its output, [examples.fea](https://github.com/typotheque/feacomposer/blob/main/examples.fea).

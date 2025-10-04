@@ -1,0 +1,82 @@
+languagesystem dev2 dflt;
+languagesystem dev2 NEP;
+# Hello and, again, welcome to the Aperture Science computer-aided enrichment center.
+feature locl {
+    script dev2;
+    language NEP;
+    lookup _1 {
+        lookupflag 0;
+        sub [one-deva five-deva eight-deva] by [one-deva.north five-deva.north eight-deva.north];
+    } _1;
+
+} locl;
+
+feature rphf {
+    script dev2;
+    language dflt;
+    lookup _2 {
+        lookupflag 0;
+        sub ra-deva virama-deva by repha-deva;
+    } _2;
+
+    script dev2;
+    language NEP;
+    lookup _2;
+} rphf;
+
+feature rkrf {
+    script dev2;
+    language dflt;
+    lookup _3 {
+        lookupflag UseMarkFilteringSet [virama-deva];
+        sub ka-deva virama-deva ra-deva by kRa-deva;
+    } _3;
+
+    script dev2;
+    language NEP;
+    lookup _3;
+} rkrf;
+
+feature half {
+    script dev2;
+    language dflt;
+    lookup _4 {
+        lookupflag 0;
+        sub ka-deva virama-deva by k-deva;
+        sub tha-deva virama-deva by th-deva;
+        sub dha-deva virama-deva by dh-deva;
+        sub ra-deva virama-deva by r-deva;
+        sub kRa-deva virama-deva by kR-deva;
+    } _4;
+
+    script dev2;
+    language NEP;
+    lookup _4;
+} half;
+
+@thaLike = [tha-deva dha-deva];
+lookup _5 {
+    lookupflag 0;
+    sub kRa-deva by kRa-deva.compact;
+    sub usign-deva by usign-deva.compact;
+} _5;
+
+feature pres {
+    script dev2;
+    language dflt;
+    lookup _6 {
+        lookupflag 0;
+        sub @thaLike repha-deva' by repha-deva.tha;
+        ignore sub k-deva kRa-deva';
+        sub kRa-deva' lookup _5 usign-deva' lookup _5;
+    } _6;
+
+    script dev2;
+    language NEP;
+    lookup _6;
+} pres;
+
+table BASE {
+    HorizAxis.BaseTagList ideo;
+    HorizAxis.BaseScriptList hani ideo -120;
+} BASE;
