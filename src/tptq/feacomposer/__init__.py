@@ -59,9 +59,8 @@ class FeaComposer:
 
     def languageSystemStatements(self) -> list[ast.LanguageSystemStatement]:
         return [
-            ast.LanguageSystemStatement(k, i)
-            for k, v in _sortedLanguageSystemDict(self.languageSystems).items()
-            for i in v
+            ast.LanguageSystemStatement(k, v)
+            for k, v in self._normalizedLanguageSystems(self.languageSystems)
         ]
 
     def asFeatureFile(self) -> ast.FeatureFile:
@@ -84,13 +83,7 @@ class FeaComposer:
     ) -> ContextualInput:
         return ContextualInput(self._normalized(glyph), [*lookups])
 
-    # Comment or raw text:
-
-    def comment(
-        self,
-        text: str,
-    ) -> ast.Comment:
-        return self.raw("# " + text)
+    # Misc statements:
 
     def raw(
         self,
@@ -100,7 +93,11 @@ class FeaComposer:
         self.current.append(comment)
         return comment
 
-    # Misc statements:
+    def comment(
+        self,
+        text: str,
+    ) -> ast.Comment:
+        return self.raw("# " + text)
 
     def namedGlyphClass(
         self,
@@ -112,32 +109,7 @@ class FeaComposer:
         self.current.append(definition)
         return definition
 
-    def lookupReference(
-        self,
-        lookup: ast.LookupBlock,
-        feature: str,
-        *,
-        languageSystems: LanguageSystemDict | None = None,
-    ) -> ast.LookupReferenceStatement:
-        assert len(feature) == 4, feature
-        featureBlock = ast.FeatureBlock(feature)
-        self.current.append(featureBlock)
-        self.current = featureBlock.statements
-
-        reference = ast.LookupReferenceStatement(lookup)
-        if languageSystems := (languageSystems or self.languageSystems):
-            for script, languages in _sortedLanguageSystemDict(languageSystems).items():
-                assert languages, (script, languages)
-                for language in languages:
-                    assert language in self.languageSystems[script], (script, language)
-                    self.current.append(ast.ScriptStatement(script))
-                    self.current.append(ast.LanguageStatement(language))
-                    self.current.append(reference)
-        else:
-            self.current.append(reference)
-        return reference
-
-    # Block statements:
+    # Lookup block or reference:
 
     @contextmanager
     def Lookup(
@@ -148,50 +120,37 @@ class FeaComposer:
         feature: str = "",
         flags: LookupFlagDict | None = None,
     ) -> Iterator[ast.LookupBlock]:
-        backup = self.current
-
         if not name:
             name = f"_{self.nextLookupNumber}"
             self.nextLookupNumber += 1
         lookupBlock = ast.LookupBlock(name)
-
-        if feature:
-            assert len(feature) == 4, feature
-            featureBlock = ast.FeatureBlock(feature)
-            self.current.append(featureBlock)
-            self.current = featureBlock.statements
-            if languageSystems := (languageSystems or self.languageSystems):
-                lookupBlockReferenceable = False
-                for script, languages in _sortedLanguageSystemDict(languageSystems).items():
-                    assert languages, (script, languages)
-                    for language in languages:
-                        assert language in self.languageSystems[script], (script, language)
-                        self.current.append(ast.ScriptStatement(script))
-                        self.current.append(ast.LanguageStatement(language))
-                        if not lookupBlockReferenceable:
-                            self.current.append(lookupBlock)
-                            lookupBlockReferenceable = True
-                        else:
-                            self.current.append(ast.LookupReferenceStatement(lookupBlock))
-            else:
-                self.current.append(lookupBlock)
-        else:
-            assert not languageSystems, languageSystems
-            self.current.append(lookupBlock)
-
-        self.current = lookupBlock.statements
         flags = flags or {}
-        self.current.append(
+        lookupBlock.statements.append(
             ast.LookupFlagStatement(
                 sum(_LOOKUP_FLAG_NAME_TO_MASK.get(k, 0) for k, v in flags.items() if v),
                 markAttachment=self._normalized(flags.get("MarkAttachmentType")),
                 markFilteringSet=self._normalized(flags.get("UseMarkFilteringSet")),
             )
         )
+        self._addLookup(lookupBlock, feature, languageSystems)
+
+        backup = self.current
+        self.current = lookupBlock.statements
         try:
             yield lookupBlock
         finally:
             self.current = backup
+
+    def lookupReference(
+        self,
+        lookup: ast.LookupBlock,
+        feature: str,
+        *,
+        languageSystems: LanguageSystemDict | None = None,
+    ) -> ast.LookupReferenceStatement:
+        reference = ast.LookupReferenceStatement(lookup)
+        self._addLookup(reference, feature, languageSystems)
+        return reference
 
     # Substitution statements:
 
@@ -298,6 +257,49 @@ class FeaComposer:
         else:
             return glyph
 
+    def _normalizedLanguageSystems(
+        self,
+        languageSystems: LanguageSystemDict,
+    ) -> list[tuple[str, str]]:
+        normalized = list[tuple[str, str]]()
+        for script, languages in sorted(
+            languageSystems.items(),
+            key=lambda x: "" if x == DEFAULT_SCRIPT_TAG else x,
+        ):
+            assert languages, (script, languages)
+            for language in sorted(
+                languages,
+                key=lambda x: "" if x == DEFAULT_LANGUAGE_TAG else x,
+            ):
+                assert language in self.languageSystems[script], (script, language)
+                normalized.append((script, language))
+        return normalized
+
+    def _addLookup(
+        self,
+        lookup: ast.LookupBlock | ast.LookupReferenceStatement,
+        feature: str,
+        languageSystems: LanguageSystemDict | None,
+    ) -> None:
+        if feature:
+            assert len(feature) == 4, feature
+            for languageSystem in self._normalizedLanguageSystems(
+                languageSystems or self.languageSystems
+            ) or [None]:
+                featureBlock = ast.FeatureBlock(feature)
+                if languageSystem:
+                    script, language = languageSystem
+                    featureBlock.statements.append(ast.ScriptStatement(script))
+                    featureBlock.statements.append(ast.LanguageStatement(language))
+                featureBlock.statements.append(lookup)
+                self.current.append(featureBlock)
+                if isinstance(lookup, ast.LookupBlock):
+                    lookup = ast.LookupReferenceStatement(lookup)
+        else:
+            assert isinstance(lookup, ast.LookupBlock), lookup
+            assert not languageSystems, languageSystems
+            self.current.append(lookup)
+
 
 _LOOKUP_FLAG_NAME_TO_MASK = {
     "RightToLeft": 0x0001,
@@ -305,10 +307,3 @@ _LOOKUP_FLAG_NAME_TO_MASK = {
     "IgnoreLigatures": 0x0004,
     "IgnoreMarks": 0x0008,
 }
-
-
-def _sortedLanguageSystemDict(mapping: LanguageSystemDict) -> dict[str, list[str]]:
-    return {
-        k: sorted(v, key=lambda x: "" if x == DEFAULT_LANGUAGE_TAG else x)
-        for k, v in sorted(mapping.items(), key=lambda x: "" if x == DEFAULT_SCRIPT_TAG else x)
-    }

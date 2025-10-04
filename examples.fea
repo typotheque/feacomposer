@@ -19,6 +19,9 @@ feature rphf {
         sub ra-deva virama-deva by repha-deva;
     } _2;
 
+} rphf;
+
+feature rphf {
     script dev2;
     language NEP;
     lookup _2;
@@ -32,6 +35,9 @@ feature rkrf {
         sub ka-deva virama-deva ra-deva by kRa-deva;
     } _3;
 
+} rkrf;
+
+feature rkrf {
     script dev2;
     language NEP;
     lookup _3;
@@ -49,6 +55,9 @@ feature half {
         sub kRa-deva virama-deva by kR-deva;
     } _4;
 
+} half;
+
+feature half {
     script dev2;
     language NEP;
     lookup _4;
@@ -71,6 +80,9 @@ feature pres {
         sub kRa-deva' lookup _5 usign-deva' lookup _5;
     } _6;
 
+} pres;
+
+feature pres {
     script dev2;
     language NEP;
     lookup _6;

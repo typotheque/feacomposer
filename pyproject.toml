@@ -1,6 +1,6 @@
 [project]
 name = "tptq-feacomposer"
-version = "1.11.6"
+version = "1.11.7"
 description = "A feaLib wrapper for composing FEA code in Python"
 license = { text = "MIT" }
 readme = "README.md"
@@ -24,4 +24,4 @@ build-backend = "uv_build"
 module-name = "tptq.feacomposer"
 
 [tool.pytest.ini_options]
-addopts = ["examples.py", "--import-mode=importlib", "--color=yes"]
+addopts = ["examples.py", "--import-mode=importlib", "-vv", "--color=yes"]
