@@ -7,7 +7,7 @@ readme = "README.md"
 authors = [{ name = "Liang Hai", email = "liang@typotheque.com" }]
 urls.repository = "https://github.com/typotheque/feacomposer"
 urls.releasenotes = "https://github.com/typotheque/feacomposer/releases"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     "fonttools>=4.43.0"
     # https://github.com/typotheque/feacomposer/pull/2
