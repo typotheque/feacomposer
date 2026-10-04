@@ -4,7 +4,8 @@ from fontTools.feaLib.ast import BaseAxis, TableBlock
 
 from tptq.feacomposer import FeaComposer
 
-reference = (Path.cwd() / "examples.fea").read_text()
+repo = Path(__file__).parent
+reference = (repo / "examples.fea").read_text()
 
 
 def test() -> None:
