@@ -27,7 +27,7 @@ Install from PyPI:
 pip install tptq.feacomposer
 ```
 
-> Note the namespace dot in the “import package” name below has been normalized to a dash in the “distribution package” name above. See also [Distribution package vs. import package](https://packaging.python.org/en/latest/discussions/distribution-package-vs-import-package/).
+> The [normalized](https://packaging.python.org/en/latest/specifications/name-normalization/) package name “tptq-feacomposer” appears on PyPI. These two forms are equivalent for package management, but only “tptq.feacomposer” works for importing.
 
 Compose FEA code in Python:
 
