@@ -8,15 +8,17 @@
   "editor.defaultFormatter": "esbenp.prettier-vscode",
   "editor.formatOnSave": true,
   "[python]": {
-    "editor.defaultFormatter": "ms-python.black-formatter",
+    "editor.defaultFormatter": "charliermarsh.ruff",
     "editor.codeActionsOnSave": {
-      "source.organizeImports": "explicit"
+      "source.organizeImports": "never",
+      "source.organizeImports.ruff": "explicit"
     }
   },
   "python.analysis.typeCheckingMode": "basic",
+  "python.analysis.diagnosticSeverityOverrides": {
+    "reportPossiblyUnboundVariable": true
+  },
   "python.testing.pytestEnabled": true,
-  "black-formatter.args": ["--line-length", "100"],
-  "isort.args": ["--profile", "black"],
   "[toml]": {
     "editor.defaultFormatter": "bodil.prettier-toml"
   }

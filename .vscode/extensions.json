@@ -1,8 +1,8 @@
 {
   "recommendations": [
     "bodil.prettier-toml",
+    "charliermarsh.ruff",
     "esbenp.prettier-vscode",
-    "ms-python.black-formatter",
     "ms-python.python"
   ]
 }

@@ -13,7 +13,9 @@ def test() -> None:
         glyphNameProcessor=insertNamespace,
     )
 
-    c.comment("Hello and, again, welcome to the Aperture Science computer-aided enrichment center.")
+    c.comment(
+        "Hello and, again, welcome to the Aperture Science computer-aided enrichment center."
+    )
 
     with c.Lookup(
         languageSystems={"dev2": {"NEP "}},
